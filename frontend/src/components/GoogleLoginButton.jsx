@@ -59,4 +59,4 @@ const GoogleLoginButton = ({ text = 'Continue with Google', variant = 'outlined'
   );
 };
 
-export default GoogleLoginButton;
+export default React.memo(GoogleLoginButton);

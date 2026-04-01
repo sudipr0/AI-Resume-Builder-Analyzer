@@ -429,4 +429,4 @@ export const ATSInsightsSkeleton = () => (
   </div>
 );
 
-export default DashboardSkeleton;
+export default React.memo(DashboardSkeleton);

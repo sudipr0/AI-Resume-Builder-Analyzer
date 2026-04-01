@@ -1619,4 +1619,4 @@ const CustomPage = ({ resumeData, onUpdate, errors, setErrors }) => {
   );
 };
 
-export default CustomPage;
+export default React.memo(CustomPage);

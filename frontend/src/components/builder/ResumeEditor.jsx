@@ -34,4 +34,4 @@ const ResumeEditor = ({ initialResume, jobDescription }) => {
     );
 };
 
-export default ResumeEditor;
+export default React.memo(ResumeEditor);

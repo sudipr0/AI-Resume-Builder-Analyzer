@@ -103,4 +103,4 @@ const BuilderStatsPanel = ({
     );
 };
 
-export default BuilderStatsPanel;
+export default React.memo(BuilderStatsPanel);

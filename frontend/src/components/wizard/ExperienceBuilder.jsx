@@ -716,4 +716,4 @@ const ExperienceBuilder = ({
   );
 };
 
-export default ExperienceBuilder;
+export default React.memo(ExperienceBuilder);

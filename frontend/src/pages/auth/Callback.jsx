@@ -441,4 +441,4 @@ const Callback = () => {
   return null;
 };
 
-export default Callback;
+export default React.memo(Callback);

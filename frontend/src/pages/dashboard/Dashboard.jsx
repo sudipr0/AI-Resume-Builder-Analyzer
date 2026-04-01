@@ -1,4 +1,4 @@
-// src/pages/dashboard/Dashboard.jsx - FIXED COMPLETE VERSION
+// src/pages/dashboard/Dashboard.jsx - COMPLETE UPDATED VERSION WITH DRAFT/COMPLETED SECTIONS
 import React, { useState, useCallback, useMemo, useDeferredValue, Suspense, lazy, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
@@ -22,7 +22,6 @@ import {
   Download,
   Loader2,
   AlertCircle,
-  Clock,
   Zap,
   RefreshCw,
   FilePlus,
@@ -30,9 +29,7 @@ import {
   Moon,
   Sun,
   TrendingUp,
-  TrendingDown,
   Star,
-  AlertTriangle,
   CheckCircle,
   HardDrive,
   Activity,
@@ -40,18 +37,21 @@ import {
   Edit,
   Trash2,
   Search,
-  BarChart,
-  DownloadCloud,
-  Info,
-  ExternalLink,
-  Users,
   Target,
-  Award,
   TrendingUp as TrendingUpIcon,
   Menu,
   X,
   Grid,
-  List
+  List,
+  LayoutDashboard,
+  Settings,
+  FileEdit,
+  Award,
+  Clock,
+  Users,
+  ChevronRight,
+  ChevronLeft,
+  Home
 } from 'lucide-react';
 
 // Lazy load components
@@ -95,7 +95,6 @@ const useDashboardStats = (userId) => {
       } catch (error) {
         console.error('❌ Dashboard stats error:', error);
 
-        // If it's an auth error, re-throw it
         if (error.message.includes('not authenticated') ||
           error.message.includes('401') ||
           error.message.includes('Unauthorized')) {
@@ -103,20 +102,18 @@ const useDashboardStats = (userId) => {
           throw error;
         }
 
-        // For other errors, return default stats
         console.warn('⚠️ Returning default stats due to error');
         return getDefaultStats();
       }
     },
     enabled: !!userId,
-    staleTime: 2 * 60 * 1000, // 2 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000)
   });
 };
 
-// Helper function to calculate stats from resumes
 const calculateStatsFromResumes = (resumes) => {
   if (!Array.isArray(resumes) || resumes.length === 0) {
     return getDefaultStats();
@@ -127,7 +124,6 @@ const calculateStatsFromResumes = (resumes) => {
   const draftResumes = resumes.filter(r => r.status === 'draft').length;
   const inProgressResumes = resumes.filter(r => r.status === 'in-progress').length;
 
-  // Calculate ATS scores
   const atsScores = resumes
     .filter(r => r.analysis?.atsScore)
     .map(r => r.analysis.atsScore);
@@ -141,22 +137,18 @@ const calculateStatsFromResumes = (resumes) => {
   ).length;
   const lowScoreResumes = resumes.filter(r => r.analysis?.atsScore < 60).length;
 
-  // Calculate views and downloads
   const totalViews = resumes.reduce((sum, r) => sum + (r.views || 0), 0);
   const totalDownloads = resumes.reduce((sum, r) => sum + (r.downloads || 0), 0);
 
-  // Calculate completion rate
   const completionRate = totalResumes > 0 ?
     Math.round((completedResumes / totalResumes) * 100) : 0;
 
-  // Get template distribution
   const templatesUsed = resumes.reduce((acc, resume) => {
     const template = resume.template || 'unknown';
     acc[template] = (acc[template] || 0) + 1;
     return acc;
   }, {});
 
-  // Generate recent activity from resume updates
   const recentActivity = resumes
     .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
     .slice(0, 5)
@@ -167,7 +159,6 @@ const calculateStatsFromResumes = (resumes) => {
       resumeId: resume._id
     }));
 
-  // Calculate storage usage (simplified - 0.5MB per resume)
   const storageUsedMB = Math.round(totalResumes * 0.5);
   const storageLimitMB = 500;
   const storageUsedPercentage = Math.round((storageUsedMB / storageLimitMB) * 100);
@@ -197,7 +188,6 @@ const calculateStatsFromResumes = (resumes) => {
   };
 };
 
-// Helper function for default stats
 const getDefaultStats = () => {
   return {
     totalResumes: 0,
@@ -224,7 +214,6 @@ const getDefaultStats = () => {
   };
 };
 
-// FIXED: Removed userId parameter from apiService call
 const useUserResumes = (userId) => {
   return useQuery({
     queryKey: ['userResumes', userId],
@@ -232,14 +221,12 @@ const useUserResumes = (userId) => {
       try {
         console.log('📥 Fetching user resumes...');
 
-        // Check if user is authenticated
         const token = localStorage.getItem('token');
         if (!token) {
           console.warn('⚠️ No auth token found, returning empty array');
           return [];
         }
 
-        // ✅ FIXED: apiService.resume.getUserResumes() doesn't take userId parameter
         const resumes = await apiService.resume.getUserResumes();
 
         if (!Array.isArray(resumes)) {
@@ -283,7 +270,6 @@ const useUserResumes = (userId) => {
       } catch (error) {
         console.error('❌ Resumes error:', error);
 
-        // If it's an auth error, re-throw it for redirect
         if (error.message.includes('not authenticated') ||
           error.message.includes('401') ||
           error.message.includes('Unauthorized')) {
@@ -293,7 +279,7 @@ const useUserResumes = (userId) => {
         return [];
       }
     },
-    enabled: !!userId, // Only run if userId exists
+    enabled: !!userId,
     staleTime: 3 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
     retry: 2
@@ -307,7 +293,6 @@ const filterAndSortResumes = (resumes, searchQuery, filters) => {
 
   let filtered = [...resumes];
 
-  // Search filter
   if (query) {
     filtered = filtered.filter(resume => {
       const titleMatch = resume.title?.toLowerCase().includes(query);
@@ -318,7 +303,6 @@ const filterAndSortResumes = (resumes, searchQuery, filters) => {
     });
   }
 
-  // Status filter
   if (filters.status !== 'all') {
     filtered = filtered.filter(resume => {
       switch (filters.status) {
@@ -337,12 +321,10 @@ const filterAndSortResumes = (resumes, searchQuery, filters) => {
     });
   }
 
-  // Template filter
   if (filters.template !== 'all') {
     filtered = filtered.filter(resume => resume.template === filters.template);
   }
 
-  // Sorting
   filtered.sort((a, b) => {
     const order = filters.sortOrder === 'desc' ? -1 : 1;
 
@@ -403,21 +385,18 @@ const calculateEnhancedStats = (dashboardStats, rawResumes, selectedResumes) => 
   const totalViews = rawResumes.reduce((sum, r) => sum + (r.views || 0), 0);
   const totalDownloads = rawResumes.reduce((sum, r) => sum + (r.downloads || 0), 0);
 
-  // Calculate storage
   const storageUsedMB = parseFloat(dashboardStats?.storageUsed?.replace(' MB', '') || 0);
   const storageLimitMB = parseFloat(dashboardStats?.storageLimit?.replace(' MB', '') || 500);
   const storageUsedPercentage = storageLimitMB > 0
     ? (storageUsedMB / storageLimitMB) * 100
     : 0;
 
-  // Template distribution
   const templatesUsed = rawResumes.reduce((acc, resume) => {
     const template = resume.template || 'unknown';
     acc[template] = (acc[template] || 0) + 1;
     return acc;
   }, {});
 
-  // Calculate trends
   const lastMonthResumes = rawResumes.filter(r => {
     const resumeDate = new Date(r.createdAt);
     const oneMonthAgo = new Date();
@@ -464,27 +443,27 @@ const StatCard = ({ title, value, icon: Icon, color, description, trend, darkMod
       whileHover={{ scale: 1.02, y: -2 }}
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
-      className={`p-3 sm:p-4 rounded-lg sm:rounded-xl border cursor-pointer transition-all shadow-sm hover:shadow-md ${darkMode
+      className={`p-4 sm:p-5 rounded-xl sm:rounded-2xl border cursor-pointer transition-all shadow-sm hover:shadow-md ${darkMode
         ? 'bg-gray-800/50 border-gray-700 hover:border-gray-600 hover:bg-gray-800'
         : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'
         }`}
     >
-      <div className="flex items-start justify-between mb-2 sm:mb-3">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className={`p-1.5 sm:p-2 rounded-lg ${color.bg} ${color.text}`}>
-            <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <div className={`p-2 sm:p-2.5 rounded-xl ${color.bg} ${color.text}`}>
+            <Icon className="w-5 h-5 sm:w-5 sm:h-5" />
           </div>
           <div>
-            <h3 className={`font-semibold text-xs sm:text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+            <h3 className={`font-semibold text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
               {title}
             </h3>
             {trend && (
-              <div className="flex items-center gap-1 mt-0.5 sm:mt-1">
-                <TrendingUpIcon className={`w-2.5 h-2.5 sm:w-3 sm:h-3 ${trend.value > 0 ? 'text-green-500' : 'text-red-500'}`} />
+              <div className="flex items-center gap-1 mt-1">
+                <TrendingUpIcon className={`w-3 h-3 ${trend.value > 0 ? 'text-green-500' : 'text-red-500'}`} />
                 <span className={`text-xs ${trend.value > 0 ? 'text-green-500' : 'text-red-500'}`}>
                   {trend.value > 0 ? '+' : ''}{trend.value}%
                 </span>
-                <span className={`text-xs hidden xs:inline ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                <span className={`text-xs hidden sm:inline ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                   {trend.label}
                 </span>
               </div>
@@ -493,11 +472,11 @@ const StatCard = ({ title, value, icon: Icon, color, description, trend, darkMod
         </div>
       </div>
       <div className="mb-1">
-        <div className={`text-xl sm:text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+        <div className={`text-2xl sm:text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
           {value}
         </div>
         {description && (
-          <p className={`text-xs mt-0.5 sm:mt-1 line-clamp-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+          <p className={`text-xs sm:text-sm mt-1 line-clamp-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
             {description}
           </p>
         )}
@@ -541,22 +520,21 @@ const ResumeCard = ({ resume, isSelected, darkMode, onEdit, onDelete, onExport, 
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      whileHover={{ y: -2 }}
-      className={`relative p-3 sm:p-4 rounded-lg sm:rounded-xl border transition-all cursor-pointer group ${isSelected
+      whileHover={{ y: -4 }}
+      className={`relative p-4 sm:p-5 rounded-xl sm:rounded-2xl border transition-all cursor-pointer group ${isSelected
         ? darkMode
-          ? 'border-blue-500 bg-blue-900/20'
-          : 'border-blue-500 bg-blue-50'
+          ? 'border-blue-500 bg-blue-900/20 ring-2 ring-blue-500/20'
+          : 'border-blue-500 bg-blue-50 ring-2 ring-blue-500/20'
         : darkMode
           ? 'bg-gray-800/50 border-gray-700 hover:border-gray-600 hover:bg-gray-800'
           : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'
         }`}
       onClick={() => !isSelected && onEdit(resume)}
     >
-      {/* Template indicator */}
-      <div className={`absolute top-0 right-0 w-12 sm:w-16 h-1 rounded-t-lg bg-gradient-to-r ${getTemplateColor(resume.template)}`} />
+      <div className={`absolute top-0 right-0 w-16 h-1.5 rounded-t-xl bg-gradient-to-r ${getTemplateColor(resume.template)}`} />
 
-      <div className="flex items-start justify-between mb-2 sm:mb-3">
-        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
           <input
             type="checkbox"
             checked={isSelected}
@@ -565,49 +543,49 @@ const ResumeCard = ({ resume, isSelected, darkMode, onEdit, onDelete, onExport, 
               onSelect(resume._id);
             }}
             onClick={(e) => e.stopPropagation()}
-            className={`w-4 h-4 sm:w-4 sm:h-4 rounded cursor-pointer flex-shrink-0 ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}`}
+            className={`w-4 h-4 rounded cursor-pointer flex-shrink-0 ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'
+              }`}
           />
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1 sm:gap-2 mb-0.5 sm:mb-1">
-              <h3 className={`font-semibold truncate text-sm sm:text-base ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className={`font-semibold truncate text-base ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                 {resume.title || 'Untitled Resume'}
               </h3>
               {resume.isPinned && (
-                <svg className="w-3 h-3 sm:w-4 sm:h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M16 12V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v8l-2 2v2h5.17l1.01 4.03c.11.42.49.73.93.73s.82-.31.93-.73L13.83 16H18v-2l-2-2z" />
                 </svg>
               )}
             </div>
-            <p className={`text-xs sm:text-sm truncate ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+            <p className={`text-sm truncate ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
               {resume.personalInfo?.fullName || 'No name provided'}
               {resume.personalInfo?.location && ` • ${resume.personalInfo.location}`}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0">
           {resume.isPrimary && (
-            <span className="px-1.5 py-0.5 sm:px-2 sm:py-1 text-xs font-medium bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-full">
+            <span className="px-2 py-1 text-xs font-medium bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-full">
               Primary
             </span>
           )}
-          <span className={`px-1.5 py-0.5 sm:px-2 sm:py-1 text-xs font-medium rounded-full ${getStatusColor(resume.status)}`}>
+          <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(resume.status)}`}>
             {resume.status === 'in-progress' ? 'In Progress' : resume.status}
           </span>
         </div>
       </div>
 
-      {/* Progress & Stats */}
-      <div className="mb-3 sm:mb-4">
-        <div className="flex items-center justify-between mb-1 sm:mb-2">
-          <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1">
-              <Target className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
-              <span className={`text-xs sm:text-sm font-medium px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full ${getScoreColor(resume.analysis?.atsScore || 0)}`}>
+              <Target className="w-4 h-4 text-gray-400" />
+              <span className={`text-xs sm:text-sm font-medium px-2 py-1 rounded-full ${getScoreColor(resume.analysis?.atsScore || 0)}`}>
                 {resume.analysis?.atsScore || 0}% ATS
               </span>
             </div>
             <div className="flex items-center gap-1">
-              <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
+              <CheckCircle className="w-4 h-4 text-gray-400" />
               <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                 {resume.analysis?.completeness || 0}% complete
               </span>
@@ -618,8 +596,7 @@ const ResumeCard = ({ resume, isSelected, darkMode, onEdit, onDelete, onExport, 
           </span>
         </div>
 
-        {/* Progress bar */}
-        <div className={`h-1 sm:h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+        <div className={`h-1.5 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
           <div
             className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-500"
             style={{ width: `${resume.analysis?.completeness || 0}%` }}
@@ -627,16 +604,17 @@ const ResumeCard = ({ resume, isSelected, darkMode, onEdit, onDelete, onExport, 
         </div>
       </div>
 
-      {/* Tags and Actions */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           {resume.template && (
-            <span className={`px-1.5 py-0.5 sm:px-2 sm:py-1 text-xs rounded-full ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
+            <span className={`px-2 py-1 text-xs rounded-full ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+              }`}>
               {resume.template}
             </span>
           )}
           {resume.tags?.slice(0, 1).map((tag, index) => (
-            <span key={index} className={`px-1.5 py-0.5 sm:px-2 sm:py-1 text-xs rounded-full ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'}`}>
+            <span key={index} className={`px-2 py-1 text-xs rounded-full ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700'
+              }`}>
               {tag}
             </span>
           ))}
@@ -647,14 +625,14 @@ const ResumeCard = ({ resume, isSelected, darkMode, onEdit, onDelete, onExport, 
           )}
         </div>
 
-        {/* Mobile actions menu */}
         <div className="sm:hidden">
           <button
             onClick={(e) => {
               e.stopPropagation();
               setShowActions(!showActions);
             }}
-            className={`p-1.5 rounded-lg ${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`p-2 rounded-lg ${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'
+              }`}
           >
             <Menu className="w-4 h-4" />
           </button>
@@ -737,7 +715,6 @@ const ResumeCard = ({ resume, isSelected, darkMode, onEdit, onDelete, onExport, 
           </AnimatePresence>
         </div>
 
-        {/* Desktop actions */}
         <div className="hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={(e) => {
@@ -757,7 +734,8 @@ const ResumeCard = ({ resume, isSelected, darkMode, onEdit, onDelete, onExport, 
               e.stopPropagation();
               onPin?.(resume._id, !resume.isPinned);
             }}
-            className={`p-1.5 rounded-lg hover:opacity-80 ${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`p-1.5 rounded-lg hover:opacity-80 ${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'
+              }`}
             title={resume.isPinned ? 'Unpin' : 'Pin'}
           >
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -807,15 +785,14 @@ const ResumeCard = ({ resume, isSelected, darkMode, onEdit, onDelete, onExport, 
         </div>
       </div>
 
-      {/* Footer Stats */}
-      <div className="flex items-center justify-between mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-2 sm:gap-4">
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-4">
           <div className="flex items-center gap-1">
-            <Eye className="w-3 h-3 text-gray-400" />
+            <Eye className="w-3.5 h-3.5 text-gray-400" />
             <span className="text-xs text-gray-500 dark:text-gray-400">{resume.views || 0}</span>
           </div>
           <div className="flex items-center gap-1">
-            <Download className="w-3 h-3 text-gray-400" />
+            <Download className="w-3.5 h-3.5 text-gray-400" />
             <span className="text-xs text-gray-500 dark:text-gray-400">{resume.downloads || 0}</span>
           </div>
         </div>
@@ -834,15 +811,13 @@ const Dashboard = () => {
   const queryClient = useQueryClient();
   const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
 
-  // ============ FIXED: Improved Authentication Check ============
+  // ============ AUTHENTICATION CHECK ============
   useEffect(() => {
-    // Don't redirect while auth is still loading
     if (authLoading) {
       console.log('🔄 Auth is still loading...');
       return;
     }
 
-    // Only redirect when we're sure user is not authenticated
     if (!isAuthenticated) {
       console.log('🔒 User not authenticated, redirecting to login');
       toast.error('Please login to access the dashboard');
@@ -850,9 +825,8 @@ const Dashboard = () => {
     } else {
       console.log('✅ User authenticated, loading dashboard');
     }
-  }, [isAuthenticated, authLoading, navigate]); // Watch for changes in auth state
+  }, [isAuthenticated, authLoading, navigate]);
 
-  // Show loading while checking auth
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
@@ -864,9 +838,7 @@ const Dashboard = () => {
     );
   }
 
-  // Don't render dashboard if not authenticated
   if (!isAuthenticated) {
-    // This will briefly show while redirect is happening
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
@@ -877,11 +849,9 @@ const Dashboard = () => {
     );
   }
 
-  // Now we're authenticated, render the dashboard
   console.log('🎨 Rendering dashboard content...');
 
-
-  // State
+  // ============ STATE ============
   const [searchQuery, setSearchQuery] = useState('');
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const [filters, setFilters] = useState({
@@ -889,7 +859,7 @@ const Dashboard = () => {
     sortBy: 'updatedAt',
     sortOrder: 'desc',
     template: 'all',
-    view: 'grid' // 'grid' or 'list'
+    view: 'grid'
   });
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [resumeToDelete, setResumeToDelete] = useState(null);
@@ -899,42 +869,42 @@ const Dashboard = () => {
   const [bulkAction, setBulkAction] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
 
-  // Navigation menu for Navbar
+  // ============ NAVIGATION MENU ============
   const navMenuItems = [
     {
       label: 'Dashboard',
       href: '/dashboard',
-      icon: 'LayoutDashboard',
+      icon: LayoutDashboard,
       active: true,
       badge: null
     },
     {
       label: 'Builder',
       href: '/builder',
-      icon: 'FilePlus',
+      icon: FileEdit,
       badge: null
     },
     {
       label: 'Templates',
       href: '/templates',
-      icon: 'FileText',
+      icon: FileText,
       badge: 'New'
     },
     {
       label: 'Analyzer',
       href: '/analyzer',
-      icon: 'BarChart3',
+      icon: BarChart3,
       badge: null
     },
     {
       label: 'Settings',
       href: '/settings',
-      icon: 'Settings',
+      icon: Settings,
       badge: null
     }
   ];
 
-  // Apply dark mode
+  // ============ DARK MODE ============
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
@@ -945,14 +915,13 @@ const Dashboard = () => {
     }
   }, [darkMode]);
 
-  // Load theme preference
   useEffect(() => {
     const storedTheme = localStorage.getItem('theme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     setDarkMode(storedTheme === 'dark' || (!storedTheme && prefersDark));
   }, []);
 
-  // Database Queries - FIXED: Now using the updated useDashboardStats hook
+  // ============ QUERIES ============
   const {
     data: dashboardStatsData,
     isLoading: isStatsLoading,
@@ -967,7 +936,7 @@ const Dashboard = () => {
     refetch: refetchResumes
   } = useUserResumes(user?._id || user?.id);
 
-  // Derived Data
+  // ============ DERIVED DATA ============
   const filteredResumes = useMemo(() =>
     filterAndSortResumes(rawResumes, deferredSearchQuery, filters),
     [rawResumes, deferredSearchQuery, filters]
@@ -978,7 +947,7 @@ const Dashboard = () => {
     [dashboardStatsData, rawResumes, selectedResumes]
   );
 
-  // Stat Cards Configuration
+  // ============ STAT CARDS ============
   const statCards = [
     {
       title: 'Total Resumes',
@@ -1032,7 +1001,8 @@ const Dashboard = () => {
     }
   ];
 
-  // ✅ ADDED: Missing mutation hooks
+  // ============ MUTATIONS ============
+
   const exportMutation = useMutation({
     mutationFn: ({ resumeId, format }) => apiService.resume.exportResume(resumeId, format),
     onMutate: () => {
@@ -1040,7 +1010,6 @@ const Dashboard = () => {
     },
     onSuccess: (data) => {
       toast.success('Resume exported successfully!', { id: 'export-resume' });
-      // Handle file download
       if (data.url) {
         window.open(data.url, '_blank');
       }
@@ -1059,7 +1028,6 @@ const Dashboard = () => {
   const starMutation = useMutation({
     mutationFn: ({ resumeId, starred }) => apiService.resume.updateResume(resumeId, { isStarred: starred }),
     onMutate: ({ resumeId, starred }) => {
-      // Optimistic update
       queryClient.setQueryData(['userResumes', user?._id], (old) =>
         old?.map(resume =>
           resume._id === resumeId ? { ...resume, isStarred: starred } : resume
@@ -1072,7 +1040,6 @@ const Dashboard = () => {
     onError: (error) => {
       console.error('Star error:', error);
       toast.error('Failed to update star status');
-      // Revert optimistic update
       queryClient.invalidateQueries({ queryKey: ['userResumes', user?._id] });
     }
   });
@@ -1080,7 +1047,6 @@ const Dashboard = () => {
   const pinMutation = useMutation({
     mutationFn: ({ resumeId, pinned }) => apiService.resume.updateResume(resumeId, { isPinned: pinned }),
     onMutate: ({ resumeId, pinned }) => {
-      // Optimistic update
       queryClient.setQueryData(['userResumes', user?._id], (old) =>
         old?.map(resume =>
           resume._id === resumeId ? { ...resume, isPinned: pinned } : resume
@@ -1097,23 +1063,33 @@ const Dashboard = () => {
     }
   });
 
-  // Mutations
+  // ✅ COMPLETELY FIXED: Create Resume Mutation with proper navigation
   const createMutation = useMutation({
     mutationFn: (resumeData) => apiService.resume.createResume(resumeData),
     onMutate: () => {
       toast.loading('Creating resume...', { id: 'create-resume' });
     },
     onSuccess: (createdResume) => {
-      toast.success('Resume created successfully!', { id: 'create-resume' });
+      toast.success('Resume created!', { id: 'create-resume' });
       queryClient.invalidateQueries({ queryKey: ['userResumes', user?._id] });
       queryClient.invalidateQueries({ queryKey: ['dashboardStats', user?._id] });
 
+      // ✅ FIXED: Direct navigation to builder with proper state
       if (createdResume?._id) {
-        setTimeout(() => navigate(`/builder/edit/${createdResume._id}`), 1000);
+        console.log('✅ Resume created with ID:', createdResume._id);
+
+        // Navigate to builder edit page with the created resume
+        navigate(`/builder/edit/${createdResume._id}`, {
+          state: {
+            resumeData: createdResume,
+            isNew: true
+          },
+          replace: true
+        });
       }
     },
     onError: (error) => {
-      console.error('Create error details:', error);
+      console.error('❌ Create error:', error);
       const errorMessage = error.response?.data?.message ||
         error.response?.data?.error ||
         error.message ||
@@ -1121,6 +1097,59 @@ const Dashboard = () => {
       toast.error(errorMessage, { id: 'create-resume' });
     }
   });
+
+  const handleCreateResume = useCallback(() => {
+    if (!user?._id && !user?.id) {
+      toast.error('Please login to create a resume');
+      return;
+    }
+
+    const userId = user?._id || user?.id;
+
+    // Get user name properly
+    let firstName = 'My';
+    let lastName = '';
+
+    if (user?.name) {
+      const nameParts = user.name.split(' ');
+      firstName = nameParts[0] || 'My';
+      lastName = nameParts.slice(1).join(' ') || '';
+    }
+
+    // Create a title without problematic characters
+    const timestamp = Date.now();
+    const randomStr = Math.random().toString(36).substring(2, 8);
+    const safeFirstName = firstName.replace(/['"]/g, '');
+    const uniqueTitle = `${safeFirstName}'s Resume ${new Date().toLocaleDateString().replace(/\//g, '-')}`;
+
+    console.log('🚀 Creating new resume with unique title:', uniqueTitle);
+
+    // ✅ FIXED: Match the structure expected by api.js
+    const newResumeData = {
+      title: uniqueTitle,
+      summary: '',
+      personalInfo: {
+        firstName: safeFirstName,
+        lastName: lastName,
+        email: user?.email || '',
+        phone: '',
+        location: ''
+      },
+      experience: [],
+      education: [],
+      skills: [],
+      projects: [],
+      certifications: [],
+      languages: [],
+      template: 'modern',
+      status: 'draft',
+      tags: ['new'],
+      isPublic: false
+    };
+
+    console.log('📦 Sending resume data:', newResumeData);
+    createMutation.mutate(newResumeData);
+  }, [user, createMutation]);
 
   const deleteMutation = useMutation({
     mutationFn: (resumeId) => apiService.resume.deleteResume(resumeId),
@@ -1146,34 +1175,6 @@ const Dashboard = () => {
       setResumeToDelete(null);
     }
   });
-
-  // Event Handlers
-  const handleCreateResume = useCallback(() => {
-    if (!user?._id) {
-      toast.error('Please login to create a resume');
-      return;
-    }
-
-    const newResumeData = {
-      title: `${user?.name?.split(' ')[0] || 'My'}'s Resume`,
-      template: 'modern',
-      personalInfo: {
-        fullName: user?.name || '',
-        email: user?.email || ''
-      },
-      status: 'draft',
-      isPrimary: rawResumes.length === 0,
-      // ✅ FIXED: Remove userId as apiService will handle it automatically
-      tags: ['new'],
-      analysis: {
-        atsScore: 0,
-        completeness: 0,
-        suggestions: ['Add more details to improve your resume']
-      }
-    };
-
-    createMutation.mutate(newResumeData);
-  }, [user, rawResumes.length, createMutation]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -1256,7 +1257,7 @@ const Dashboard = () => {
     logout(navigate);
   }, [logout, navigate]);
 
-  // Loading States
+  // ============ LOADING STATE ============
   if (isResumesLoading || isStatsLoading) {
     return (
       <Suspense fallback={<div className="min-h-screen bg-gray-50 dark:bg-gray-900" />}>
@@ -1271,7 +1272,7 @@ const Dashboard = () => {
             onLogout={handleLogout}
           />
           <main className="pt-16 sm:pt-20 pb-8">
-            <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <DashboardSkeleton darkMode={darkMode} />
             </div>
           </main>
@@ -1280,9 +1281,9 @@ const Dashboard = () => {
     );
   }
 
+  // ============ RENDER ============
   return (
     <div className={`min-h-screen transition-colors duration-200 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      {/* External Navbar */}
       <Navbar
         user={user}
         menuItems={navMenuItems}
@@ -1293,14 +1294,13 @@ const Dashboard = () => {
         onLogout={handleLogout}
       />
 
-      {/* Main Content */}
       <main className="pt-16 sm:pt-20 pb-8">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 sm:mb-8">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
-                <h1 className={`text-xl sm:text-2xl md:text-3xl font-bold truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              <div className="flex items-center gap-3 mb-2">
+                <h1 className={`text-2xl sm:text-3xl md:text-4xl font-bold truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                   Dashboard
                 </h1>
                 <button
@@ -1311,62 +1311,81 @@ const Dashboard = () => {
                     borderColor: darkMode ? '#4b5563' : '#e5e7eb'
                   }}
                 >
-                  {showFilters ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                  {showFilters ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                 </button>
               </div>
               <p className={`text-sm sm:text-base ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                 Welcome back, <span className="font-semibold">{user?.name || user?.email}</span>
                 {enhancedStats.totalResumes > 0 && (
-                  <span className="ml-1 sm:ml-2">• {enhancedStats.totalResumes} resumes</span>
+                  <span className="ml-2">• {enhancedStats.totalResumes} resumes</span>
                 )}
               </p>
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-3 mt-3 sm:mt-0 w-full sm:w-auto">
+            <div className="flex items-center gap-3 mt-3 sm:mt-0 w-full sm:w-auto">
               <button
                 onClick={() => setDarkMode(!darkMode)}
-                className={`p-2 sm:p-2.5 rounded-lg sm:rounded-xl border transition-all flex-shrink-0 ${darkMode
+                className={`p-2.5 rounded-xl border transition-all flex-shrink-0 ${darkMode
                   ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
                   : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                   }`}
                 title="Toggle theme"
               >
-                {darkMode ? <Sun className="w-4 h-4 sm:w-5 sm:h-5" /> : <Moon className="w-4 h-4 sm:w-5 sm:h-5" />}
+                {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
 
               <button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className={`p-2 sm:p-2.5 rounded-lg sm:rounded-xl border flex items-center gap-1 sm:gap-2 transition-all flex-1 sm:flex-auto ${darkMode
+                className={`p-2.5 rounded-xl border flex items-center gap-2 transition-all flex-1 sm:flex-auto ${darkMode
                   ? 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
                   : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                   } disabled:opacity-50`}
               >
-                <RefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
                 <span className="text-sm sm:text-base">Refresh</span>
               </button>
 
+              {/* New Resume Button */}
               <button
                 onClick={handleCreateResume}
                 disabled={createMutation.isPending}
-                className={`px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg sm:rounded-xl flex items-center gap-1 sm:gap-2 font-semibold transition-all shadow-md flex-shrink-0
+                className={`
+                  px-5 py-2.5 rounded-xl flex items-center gap-2 font-semibold transition-all shadow-md
                   ${createMutation.isPending
-                    ? 'bg-blue-500 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700'
-                  } text-white hover:shadow-lg`}
+                    ? 'bg-blue-400 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'
+                  }
+                  text-white hover:shadow-lg
+                  min-w-[120px] justify-center
+                  relative overflow-hidden group
+                `}
+                style={{
+                  pointerEvents: 'auto',
+                  zIndex: 10,
+                  cursor: createMutation.isPending ? 'wait' : 'pointer'
+                }}
               >
-                {createMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
-                ) : (
-                  <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-                )}
-                <span className="text-sm sm:text-base">New</span>
+                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+                <span className="relative flex items-center gap-2">
+                  {createMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Creating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+                      <span>New Resume</span>
+                    </>
+                  )}
+                </span>
               </button>
             </div>
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4 mb-6 sm:mb-8">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
             {statCards.map((stat, index) => (
               <StatCard key={index} {...stat} darkMode={darkMode} />
             ))}
@@ -1374,60 +1393,102 @@ const Dashboard = () => {
 
           {/* Performance Metrics */}
           <div className="mb-6 sm:mb-8">
-            <h2 className={`text-lg sm:text-xl font-semibold mb-3 sm:mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+            <h2 className={`text-lg sm:text-xl font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
               Performance Metrics
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
-              <div className={`p-3 sm:p-4 rounded-lg sm:rounded-xl ${darkMode ? 'bg-gray-800/50' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                <h3 className={`font-medium mb-2 sm:mb-3 text-sm sm:text-base ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>ATS Score Distribution</h3>
-                <div className="space-y-2 sm:space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className={`p-4 sm:p-5 rounded-xl sm:rounded-2xl ${darkMode ? 'bg-gray-800/50' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <h3 className={`font-medium mb-3 text-sm sm:text-base ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  ATS Score Distribution
+                </h3>
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>High (80+)</span>
-                    <span className="font-semibold text-green-600 text-sm sm:text-base">{enhancedStats.highScoreResumes}</span>
+                    <span className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      High (80+)
+                    </span>
+                    <span className="font-semibold text-green-600 text-sm sm:text-base">
+                      {enhancedStats.highScoreResumes}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Medium (60-79)</span>
-                    <span className="font-semibold text-amber-600 text-sm sm:text-base">{enhancedStats.mediumScoreResumes}</span>
+                    <span className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      Medium (60-79)
+                    </span>
+                    <span className="font-semibold text-amber-600 text-sm sm:text-base">
+                      {enhancedStats.mediumScoreResumes}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Low (&lt;60)</span>
-                    <span className="font-semibold text-red-600 text-sm sm:text-base">{enhancedStats.lowScoreResumes}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className={`p-3 sm:p-4 rounded-lg sm:rounded-xl ${darkMode ? 'bg-gray-800/50' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                <h3 className={`font-medium mb-2 sm:mb-3 text-sm sm:text-base ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Resume Status</h3>
-                <div className="space-y-2 sm:space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Completed</span>
-                    <span className="font-semibold text-green-600 text-sm sm:text-base">{enhancedStats.completedResumes}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>In Progress</span>
-                    <span className="font-semibold text-blue-600 text-sm sm:text-base">{enhancedStats.inProgressResumes}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Drafts</span>
-                    <span className="font-semibold text-gray-600 text-sm sm:text-base">{enhancedStats.draftResumes}</span>
+                    <span className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      Low (&lt;60)
+                    </span>
+                    <span className="font-semibold text-red-600 text-sm sm:text-base">
+                      {enhancedStats.lowScoreResumes}
+                    </span>
                   </div>
                 </div>
               </div>
 
-              <div className={`p-3 sm:p-4 rounded-lg sm:rounded-xl ${darkMode ? 'bg-gray-800/50' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                <h3 className={`font-medium mb-2 sm:mb-3 text-sm sm:text-base ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Activity</h3>
-                <div className="space-y-2 sm:space-y-3">
+              <div className={`p-4 sm:p-5 rounded-xl sm:rounded-2xl ${darkMode ? 'bg-gray-800/50' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <h3 className={`font-medium mb-3 text-sm sm:text-base ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Resume Status
+                </h3>
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Total Views</span>
-                    <span className="font-semibold text-purple-600 text-sm sm:text-base">{enhancedStats.totalViews}</span>
+                    <span className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      Completed
+                    </span>
+                    <span className="font-semibold text-green-600 text-sm sm:text-base">
+                      {enhancedStats.completedResumes}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Downloads</span>
-                    <span className="font-semibold text-emerald-600 text-sm sm:text-base">{enhancedStats.totalDownloads}</span>
+                    <span className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      In Progress
+                    </span>
+                    <span className="font-semibold text-blue-600 text-sm sm:text-base">
+                      {enhancedStats.inProgressResumes}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>This Month</span>
-                    <span className="font-semibold text-blue-600 text-sm sm:text-base">{enhancedStats.lastMonthResumes}</span>
+                    <span className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      Drafts
+                    </span>
+                    <span className="font-semibold text-gray-600 text-sm sm:text-base">
+                      {enhancedStats.draftResumes}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className={`p-4 sm:p-5 rounded-xl sm:rounded-2xl ${darkMode ? 'bg-gray-800/50' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                <h3 className={`font-medium mb-3 text-sm sm:text-base ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Activity
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      Total Views
+                    </span>
+                    <span className="font-semibold text-purple-600 text-sm sm:text-base">
+                      {enhancedStats.totalViews}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      Downloads
+                    </span>
+                    <span className="font-semibold text-emerald-600 text-sm sm:text-base">
+                      {enhancedStats.totalDownloads}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      This Month
+                    </span>
+                    <span className="font-semibold text-blue-600 text-sm sm:text-base">
+                      {enhancedStats.lastMonthResumes}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1436,16 +1497,16 @@ const Dashboard = () => {
 
           {/* Search and Filters */}
           <div className="mb-6">
-            <div className="flex flex-col md:flex-row gap-3 sm:gap-4 mb-3 sm:mb-4">
+            <div className="flex flex-col md:flex-row gap-4 mb-4">
               <div className="flex-1">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
                     type="text"
-                    placeholder="Search resumes..."
+                    placeholder="Search resumes by title, name, email or tags..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className={`w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base ${darkMode
+                    className={`w-full pl-10 pr-4 py-2.5 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base ${darkMode
                       ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500 focus:border-transparent'
                       : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-transparent'
                       }`}
@@ -1453,11 +1514,10 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              {/* Mobile filter toggle button */}
               <div className="flex items-center gap-2 sm:hidden">
                 <button
                   onClick={() => setShowFilters(!showFilters)}
-                  className={`px-3 py-2 rounded-lg border flex items-center gap-2 flex-1 ${darkMode
+                  className={`px-4 py-2.5 rounded-lg border flex items-center gap-2 flex-1 ${darkMode
                     ? 'bg-gray-800 border-gray-700 text-white hover:bg-gray-700'
                     : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'
                     }`}
@@ -1468,7 +1528,7 @@ const Dashboard = () => {
 
                 <button
                   onClick={() => setFilters(prev => ({ ...prev, view: prev.view === 'grid' ? 'list' : 'grid' }))}
-                  className={`p-2 rounded-lg border ${darkMode
+                  className={`p-2.5 rounded-lg border ${darkMode
                     ? 'bg-gray-800 border-gray-700 text-white hover:bg-gray-700'
                     : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'
                     }`}
@@ -1477,7 +1537,6 @@ const Dashboard = () => {
                 </button>
               </div>
 
-              {/* Desktop filters */}
               <div className="hidden sm:flex flex-wrap gap-2">
                 <select
                   value={filters.status}
@@ -1560,7 +1619,7 @@ const Dashboard = () => {
                   exit={{ opacity: 0, height: 0 }}
                   className="sm:hidden overflow-hidden"
                 >
-                  <div className="grid grid-cols-2 gap-2 mb-3 p-3 rounded-lg border"
+                  <div className="grid grid-cols-2 gap-2 mb-3 p-4 rounded-lg border"
                     style={{
                       backgroundColor: darkMode ? '#1f2937' : '#f9fafb',
                       borderColor: darkMode ? '#374151' : '#e5e7eb'
@@ -1569,7 +1628,7 @@ const Dashboard = () => {
                     <select
                       value={filters.status}
                       onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-                      className={`px-2 py-2 rounded-lg border focus:outline-none focus:ring-1 focus:ring-blue-500                         text-xs ${darkMode
+                      className={`px-2 py-2 rounded-lg border focus:outline-none focus:ring-1 focus:ring-blue-500 text-xs ${darkMode
                         ? 'bg-gray-800 border-gray-700 text-white'
                         : 'bg-white border-gray-300 text-gray-900'
                         }`}
@@ -1673,10 +1732,122 @@ const Dashboard = () => {
             )}
           </div>
 
+          {/* DRAFTS SECTION */}
+          {filters.status === 'all' && enhancedStats.draftResumes > 0 && (
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${darkMode ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-100 text-blue-600'}`}>
+                    <FileEdit className="w-5 h-5" />
+                  </div>
+                  <h2 className={`text-xl font-bold tracking-tight ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Drafts <span className="text-sm font-normal text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full ml-1">{enhancedStats.draftResumes}</span>
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setFilters(prev => ({ ...prev, status: 'draft' }))}
+                  className={`group flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl transition-all ${darkMode ? 'bg-gray-800 text-blue-400 hover:bg-gray-700 hover:text-blue-300' : 'bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700'}`}
+                >
+                  See All
+                  <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {rawResumes
+                  .filter(r => r.status === 'draft')
+                  .slice(0, 4)
+                  .map((resume) => (
+                    <ResumeCard
+                      key={resume._id}
+                      resume={resume}
+                      isSelected={selectedResumes.includes(resume._id)}
+                      darkMode={darkMode}
+                      onEdit={handleEditResume}
+                      onDelete={handleDeleteResume}
+                      onExport={handleExportResume}
+                      onSelect={handleSelectResume}
+                      onView={handleViewResume}
+                      onStar={handleStarResume}
+                      onPin={handlePinResume}
+                    />
+                  ))}
+              </div>
+
+              {enhancedStats.draftResumes > 4 && (
+                <div className="mt-6 flex justify-center">
+                  <button
+                    onClick={() => setFilters(prev => ({ ...prev, status: 'draft' }))}
+                    className={`group flex items-center gap-2 px-6 py-2.5 rounded-full border border-dashed transition-all ${darkMode ? 'border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 bg-gray-800/50 hover:bg-gray-800' : 'border-gray-300 text-gray-600 hover:text-gray-900 hover:border-gray-400 bg-gray-50 hover:bg-gray-100'}`}
+                  >
+                    Load {enhancedStats.draftResumes - 4} more drafts
+                    <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* COMPLETED RESUMES SECTION */}
+          {filters.status === 'all' && enhancedStats.completedResumes > 0 && (
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${darkMode ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-600'}`}>
+                    <CheckCircle className="w-5 h-5" />
+                  </div>
+                  <h2 className={`text-xl font-bold tracking-tight ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Completed <span className="text-sm font-normal text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full ml-1">{enhancedStats.completedResumes}</span>
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setFilters(prev => ({ ...prev, status: 'completed' }))}
+                  className={`group flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl transition-all ${darkMode ? 'bg-gray-800 text-green-400 hover:bg-gray-700 hover:text-green-300' : 'bg-green-50 text-green-600 hover:bg-green-100 hover:text-green-700'}`}
+                >
+                  See All
+                  <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {rawResumes
+                  .filter(r => r.status === 'completed')
+                  .slice(0, 4)
+                  .map((resume) => (
+                    <ResumeCard
+                      key={resume._id}
+                      resume={resume}
+                      isSelected={selectedResumes.includes(resume._id)}
+                      darkMode={darkMode}
+                      onEdit={handleEditResume}
+                      onDelete={handleDeleteResume}
+                      onExport={handleExportResume}
+                      onSelect={handleSelectResume}
+                      onView={handleViewResume}
+                      onStar={handleStarResume}
+                      onPin={handlePinResume}
+                    />
+                  ))}
+              </div>
+
+              {enhancedStats.completedResumes > 4 && (
+                <div className="mt-6 flex justify-center">
+                  <button
+                    onClick={() => setFilters(prev => ({ ...prev, status: 'completed' }))}
+                    className={`group flex items-center gap-2 px-6 py-2.5 rounded-full border border-dashed transition-all ${darkMode ? 'border-gray-700 text-gray-400 hover:text-white hover:border-gray-500 bg-gray-800/50 hover:bg-gray-800' : 'border-gray-300 text-gray-600 hover:text-gray-900 hover:border-gray-400 bg-gray-50 hover:bg-gray-100'}`}
+                  >
+                    Load {enhancedStats.completedResumes - 4} more completed
+                    <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Resumes Grid/List */}
           {isResumesError || isStatsError ? (
-            <div className={`text-center py-8 sm:py-12 rounded-xl ${darkMode ? 'bg-gray-800/50' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-              <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-500" />
+            <div className={`text-center py-12 rounded-xl ${darkMode ? 'bg-gray-800/50' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <AlertCircle className="w-16 h-16 mx-auto mb-4 text-red-500" />
               <h3 className={`text-lg font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                 Error Loading Data
               </h3>
@@ -1694,202 +1865,226 @@ const Dashboard = () => {
                 {isRefreshing ? 'Refreshing...' : 'Refresh Page'}
               </button>
             </div>
-          ) : filteredResumes.length === 0 ? (
-            <div className={`text-center py-8 sm:py-12 rounded-xl ${darkMode ? 'bg-gray-800/50' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-              <FilePlus className="w-12 h-12 mx-auto mb-4 text-blue-500" />
+          ) : rawResumes.length === 0 ? (
+            <div className={`text-center py-12 rounded-xl ${darkMode ? 'bg-gray-800/50' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              <FilePlus className="w-16 h-16 mx-auto mb-4 text-blue-500" />
               <h3 className={`text-lg font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                {searchQuery ? 'No matching resumes' : 'No resumes yet'}
+                No resumes yet
               </h3>
               <p className={`mb-6 max-w-md mx-auto ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                {searchQuery
-                  ? 'Try adjusting your search terms or filters to find what you\'re looking for.'
-                  : 'Create your first resume to get started with your professional journey.'}
+                Create your first resume to get started with your professional journey.
               </p>
               <button
                 onClick={handleCreateResume}
                 disabled={createMutation.isPending}
-                className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 mx-auto ${createMutation.isPending
-                  ? 'bg-blue-500 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700'
-                  } text-white shadow-md hover:shadow-lg`}
+                className={`
+                  px-6 py-3 rounded-xl font-semibold transition-all duration-300
+                  flex items-center justify-center gap-2 shadow-lg hover:shadow-xl
+                  ${createMutation.isPending
+                    ? 'bg-blue-400 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'
+                  }
+                  text-white text-base sm:text-lg
+                  min-w-[160px] sm:min-w-[180px]
+                  border-2 border-white/20 hover:border-white/30
+                  relative overflow-hidden group
+                  mx-auto
+                `}
+                style={{
+                  pointerEvents: 'auto',
+                  zIndex: 10,
+                  cursor: createMutation.isPending ? 'wait' : 'pointer'
+                }}
               >
-                {createMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-4 h-4" />
-                    {searchQuery ? 'Create New Resume' : 'Create Your First Resume'}
-                  </>
-                )}
+                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+                <span className="relative flex items-center gap-2">
+                  {createMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Creating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+                      <span>New Resume</span>
+                    </>
+                  )}
+                </span>
               </button>
             </div>
-          ) : filters.view === 'grid' ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-              <AnimatePresence mode="wait">
-                {filteredResumes.map((resume) => (
-                  <ResumeCard
-                    key={resume._id}
-                    resume={resume}
-                    isSelected={selectedResumes.includes(resume._id)}
-                    darkMode={darkMode}
-                    onEdit={handleEditResume}
-                    onDelete={handleDeleteResume}
-                    onExport={handleExportResume}
-                    onSelect={handleSelectResume}
-                    onView={handleViewResume}
-                    onStar={handleStarResume}
-                    onPin={handlePinResume}
-                  />
-                ))}
-              </AnimatePresence>
-            </div>
           ) : (
-            <div className={`rounded-xl overflow-hidden border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-              <div className={`grid grid-cols-12 gap-4 p-4 border-b ${darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
-                <div className="col-span-1">
-                  <input
-                    type="checkbox"
-                    checked={selectedResumes.length === filteredResumes.length && filteredResumes.length > 0}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedResumes(filteredResumes.map(r => r._id));
-                      } else {
-                        setSelectedResumes([]);
-                      }
-                    }}
-                    className={`w-4 h-4 rounded ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}`}
-                  />
-                </div>
-                <div className="col-span-4 font-medium text-sm">Title</div>
-                <div className="col-span-2 font-medium text-sm">Status</div>
-                <div className="col-span-2 font-medium text-sm">ATS Score</div>
-                <div className="col-span-2 font-medium text-sm">Last Updated</div>
-                <div className="col-span-1 font-medium text-sm">Actions</div>
-              </div>
+            <>
+              {/* Show section title only if we're in filtered view */}
+              {filters.status !== 'all' && (
+                <h2 className={`text-lg sm:text-xl font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {filters.status === 'draft' ? 'Drafts' :
+                    filters.status === 'completed' ? 'Completed' :
+                      filters.status === 'in-progress' ? 'In Progress' : 'All Resumes'}
+                  ({filteredResumes.length})
+                </h2>
+              )}
 
-              <AnimatePresence mode="wait">
-                {filteredResumes.map((resume) => (
-                  <motion.div
-                    key={resume._id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className={`grid grid-cols-12 gap-4 p-4 items-center border-b ${darkMode
-                      ? 'border-gray-700 bg-gray-800/50 hover:bg-gray-800'
-                      : 'border-gray-200 bg-white hover:bg-gray-50'
-                      }`}
-                  >
+              {/* Grid or List View */}
+              {filters.view === 'grid' ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  <AnimatePresence mode="wait">
+                    {filteredResumes.map((resume) => (
+                      <ResumeCard
+                        key={resume._id}
+                        resume={resume}
+                        isSelected={selectedResumes.includes(resume._id)}
+                        darkMode={darkMode}
+                        onEdit={handleEditResume}
+                        onDelete={handleDeleteResume}
+                        onExport={handleExportResume}
+                        onSelect={handleSelectResume}
+                        onView={handleViewResume}
+                        onStar={handleStarResume}
+                        onPin={handlePinResume}
+                      />
+                    ))}
+                  </AnimatePresence>
+                </div>
+              ) : (
+                <div className={`rounded-xl overflow-hidden border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                  <div className={`grid grid-cols-12 gap-4 p-4 border-b ${darkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
                     <div className="col-span-1">
                       <input
                         type="checkbox"
-                        checked={selectedResumes.includes(resume._id)}
-                        onChange={(e) => handleSelectResume(resume._id)}
+                        checked={selectedResumes.length === filteredResumes.length && filteredResumes.length > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedResumes(filteredResumes.map(r => r._id));
+                          } else {
+                            setSelectedResumes([]);
+                          }
+                        }}
                         className={`w-4 h-4 rounded ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}`}
                       />
                     </div>
-                    <div className="col-span-4">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${resume.isPinned ? 'bg-amber-500' : resume.isStarred ? 'bg-blue-500' : 'bg-gray-300'}`} />
-                        <span className={`font-medium truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                          {resume.title}
-                        </span>
-                      </div>
-                      <p className={`text-xs truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                        {resume.personalInfo?.fullName || 'No name'}
-                      </p>
-                    </div>
-                    <div className="col-span-2">
-                      <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(resume.status)}`}>
-                        {resume.status === 'in-progress' ? 'In Progress' : resume.status}
-                      </span>
-                    </div>
-                    <div className="col-span-2">
-                      <span className={`font-medium ${resume.analysis?.atsScore >= 80 ? 'text-green-600' : resume.analysis?.atsScore >= 60 ? 'text-amber-600' : 'text-red-600'}`}>
-                        {resume.analysis?.atsScore || 0}%
-                      </span>
-                    </div>
-                    <div className="col-span-2 text-sm">
-                      {new Date(resume.updatedAt).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric'
-                      })}
-                    </div>
-                    <div className="col-span-1">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleEditResume(resume)}
-                          className={`p-1 rounded ${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'}`}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleExportResume(resume._id)}
-                          className={`p-1 rounded ${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'}`}
-                        >
-                          <Download className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
-          )}
+                    <div className="col-span-4 font-medium text-sm">Title</div>
+                    <div className="col-span-2 font-medium text-sm">Status</div>
+                    <div className="col-span-2 font-medium text-sm">ATS Score</div>
+                    <div className="col-span-2 font-medium text-sm">Last Updated</div>
+                    <div className="col-span-1 font-medium text-sm">Actions</div>
+                  </div>
 
-          {/* Load More/Pagination */}
-          {filteredResumes.length > 0 && filteredResumes.length < rawResumes.length && (
-            <div className="mt-6 sm:mt-8 text-center">
-              <button
-                onClick={() => toast.info('Load more feature coming soon!')}
-                className={`px-4 py-2 rounded-lg border font-medium ${darkMode
-                  ? 'bg-gray-800 border-gray-700 text-white hover:bg-gray-700'
-                  : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'
-                  }`}
-              >
-                Load More Resumes
-              </button>
-            </div>
+                  <AnimatePresence mode="wait">
+                    {filteredResumes.map((resume) => (
+                      <motion.div
+                        key={resume._id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className={`grid grid-cols-12 gap-4 p-4 items-center border-b ${darkMode
+                          ? 'border-gray-700 bg-gray-800/50 hover:bg-gray-800'
+                          : 'border-gray-200 bg-white hover:bg-gray-50'
+                          }`}
+                      >
+                        <div className="col-span-1">
+                          <input
+                            type="checkbox"
+                            checked={selectedResumes.includes(resume._id)}
+                            onChange={(e) => handleSelectResume(resume._id)}
+                            className={`w-4 h-4 rounded ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}`}
+                          />
+                        </div>
+                        <div className="col-span-4">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${resume.isPinned ? 'bg-amber-500' : resume.isStarred ? 'bg-blue-500' : 'bg-gray-300'}`} />
+                            <span className={`font-medium truncate ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                              {resume.title}
+                            </span>
+                          </div>
+                          <p className={`text-xs truncate ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            {resume.personalInfo?.fullName || 'No name'}
+                          </p>
+                        </div>
+                        <div className="col-span-2">
+                          <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(resume.status)}`}>
+                            {resume.status === 'in-progress' ? 'In Progress' : resume.status}
+                          </span>
+                        </div>
+                        <div className="col-span-2">
+                          <span className={`font-medium ${resume.analysis?.atsScore >= 80 ? 'text-green-600' :
+                            resume.analysis?.atsScore >= 60 ? 'text-amber-600' :
+                              'text-red-600'
+                            }`}>
+                            {resume.analysis?.atsScore || 0}%
+                          </span>
+                        </div>
+                        <div className="col-span-2 text-sm">
+                          {new Date(resume.updatedAt).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                        </div>
+                        <div className="col-span-1">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleEditResume(resume)}
+                              className={`p-1 rounded ${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleExportResume(resume._id)}
+                              className={`p-1 rounded ${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              )}
+            </>
           )}
 
           {/* Quick Tips */}
-          <div className={`mt-6 sm:mt-8 p-4 rounded-xl ${darkMode ? 'bg-gray-800/50' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-            <div className="flex items-center gap-2 mb-3">
+          <div className={`mt-6 sm:mt-8 p-5 sm:p-6 rounded-xl sm:rounded-2xl ${darkMode ? 'bg-gray-800/50' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+            <div className="flex items-center gap-2 mb-4">
               <Sparkle className="w-5 h-5 text-blue-500" />
               <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Quick Tips</h3>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="flex items-start gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex items-start gap-3">
                 <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
                   <Zap className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
-                  <h4 className={`font-medium text-sm mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Improve ATS Score</h4>
+                  <h4 className={`font-medium text-sm mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Improve ATS Score
+                  </h4>
                   <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                     Use keywords from job descriptions to increase your resume's compatibility
                   </p>
                 </div>
               </div>
-              <div className="flex items-start gap-2">
+              <div className="flex items-start gap-3">
                 <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
                   <TrendingUp className="w-4 h-4 text-green-600 dark:text-green-400" />
                 </div>
                 <div>
-                  <h4 className={`font-medium text-sm mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Regular Updates</h4>
+                  <h4 className={`font-medium text-sm mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Regular Updates
+                  </h4>
                   <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                     Update your resume every 6 months to keep it current and relevant
                   </p>
                 </div>
               </div>
-              <div className="flex items-start gap-2">
+              <div className="flex items-start gap-3">
                 <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
                   <FileText className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div>
-                  <h4 className={`font-medium text-sm mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>Multiple Versions</h4>
+                  <h4 className={`font-medium text-sm mb-1 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Multiple Versions
+                  </h4>
                   <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                     Create tailored resumes for different job types or industries
                   </p>
@@ -1920,8 +2115,8 @@ const Dashboard = () => {
       </Suspense>
 
       {/* Footer */}
-      <footer className={`mt-8 pt-4 sm:pt-6 border-t ${darkMode ? 'border-gray-800' : 'border-gray-200'}`}>
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
+      <footer className={`mt-8 pt-6 border-t ${darkMode ? 'border-gray-800' : 'border-gray-200'}`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-3">
             <div>
               <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-600'}`}>
@@ -1931,7 +2126,7 @@ const Dashboard = () => {
                 })}
               </p>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-6">
               <button
                 onClick={() => navigate('/help')}
                 className={`text-sm ${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'}`}
@@ -1958,4 +2153,4 @@ const Dashboard = () => {
   );
 };
 
-export default Dashboard;
+export default React.memo(Dashboard);

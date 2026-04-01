@@ -19,4 +19,4 @@ const WeakBullets = ({ bullets = [], resume, onResumeUpdate }) => {
     );
 };
 
-export default WeakBullets;
+export default React.memo(WeakBullets);

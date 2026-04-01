@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast';
 import Navbar from '../../components/Navbar';
 import { useAuth } from '../../context/AuthContext';
 import { useResume } from '../../context/ResumeContext';
+import api from '../../services/axiosConfig';
 
 // Icons
 import {
@@ -63,79 +64,35 @@ const UploadResume = () => {
     setIsProcessing(true);
 
     try {
-      // Simulate file processing (in real app, this would be API call)
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Create FormData to send the file
+      const formData = new FormData();
+      formData.append('resumeFile', uploadedFile);
 
-      // Extract sample data from file (simulated)
-      const extractedInfo = simulateResumeExtraction(uploadedFile, user);
-      setExtractedData(extractedInfo);
+      // API call to extract data
+      const response = await api.post('/extract/resume', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
 
+      const result = response.data;
+
+      if (!result.success) {
+          throw new Error(result.message || 'Failed to extract resume data');
+      }
+
+      setExtractedData(result.data);
       toast.success('Resume processed successfully!');
       setShowPreview(true);
     } catch (error) {
       console.error('Upload error:', error);
-      toast.error('Failed to process resume');
+      toast.error(error.message || 'Failed to process resume. Please try again or use the builder directly.');
     } finally {
       setIsUploading(false);
     }
   };
 
-  const simulateResumeExtraction = (file, user) => {
-    // This simulates extracting data from a resume
-    // In a real app, you would use an OCR/parsing service
-    return {
-      personalInfo: {
-        name: user?.name || 'John Doe',
-        email: user?.email || 'john.doe@example.com',
-        phone: '+1 (555) 123-4567',
-        location: 'San Francisco, CA',
-        linkedin: 'linkedin.com/in/johndoe',
-        github: 'github.com/johndoe',
-        website: 'johndoe.com'
-      },
-      summary: 'Experienced software engineer with 5+ years in full-stack development. Specialized in React, Node.js, and cloud technologies. Passionate about building scalable applications.',
-      experience: [
-        {
-          id: '1',
-          jobTitle: 'Senior Software Engineer',
-          company: 'Tech Solutions Inc.',
-          location: 'San Francisco, CA',
-          startDate: '2020-01',
-          endDate: '2023-12',
-          current: false,
-          description: 'Led development of cloud-native applications using React and Node.js. Improved application performance by 40%. Mentored 3 junior developers.'
-        },
-        {
-          id: '2',
-          jobTitle: 'Software Developer',
-          company: 'Innovate Labs',
-          location: 'New York, NY',
-          startDate: '2018-06',
-          endDate: '2019-12',
-          current: false,
-          description: 'Developed responsive web applications. Collaborated with design team to implement UI/UX improvements.'
-        }
-      ],
-      education: [
-        {
-          id: '1',
-          degree: 'Bachelor of Science in Computer Science',
-          school: 'Stanford University',
-          location: 'Stanford, CA',
-          startDate: '2014-09',
-          endDate: '2018-05',
-          current: false,
-          description: 'Graduated with honors. Coursework in Algorithms, Data Structures, and Machine Learning.'
-        }
-      ],
-      skills: [
-        'JavaScript', 'React', 'Node.js', 'TypeScript', 'Python',
-        'AWS', 'Docker', 'Git', 'MongoDB', 'GraphQL', 'REST APIs'
-      ],
-      extractedSections: ['Experience', 'Education', 'Skills', 'Contact Info'],
-      confidenceScore: 85
-    };
-  };
+
 
   const handleContinueToBuilder = async () => {
     if (!extractedData) return;
@@ -474,4 +431,4 @@ const UploadResume = () => {
   );
 };
 
-export default UploadResume;
+export default React.memo(UploadResume);

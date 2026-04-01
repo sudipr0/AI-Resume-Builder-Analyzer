@@ -95,4 +95,4 @@ const styles = {
   },
 };
 
-export default ResumeCard;
+export default React.memo(ResumeCard);

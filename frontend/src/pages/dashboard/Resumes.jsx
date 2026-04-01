@@ -1,22 +1,328 @@
-// src/pages/dashboard/Resumes.jsx - Updated with offline-first approach
-import React, { useState, useEffect, useCallback } from 'react';
+// src/pages/dashboard/Resumes.jsx - ADVANCED RESUME MANAGEMENT
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// Icons
 import {
-  FileText, Plus, Edit, Trash2, Eye, Download,
-  Calendar, ChevronRight, Loader2, Search, Filter,
-  Star, DownloadCloud, CheckCircle, Copy, User,
-  Award, Briefcase, GraduationCap, Wifi, WifiOff,
-  RefreshCw, Database
+  FileText, Plus, Edit, Trash2, Eye, Download, Loader2,
+  Search, Filter, Star, RefreshCw, X, Clock, AlertCircle,
+  Grid, List, ChevronRight, TrendingUp, Target, Sparkles,
+  Zap, Pin, Award, Copy, MoreVertical, Check, CheckCircle,
+  Sun, Moon, Maximize2, Minimize2, ZoomIn, ZoomOut,
+  RotateCcw, Printer, Share2, Bookmark, Flag, Layers,
+  Settings, ExternalLink, ChevronLeft, Calendar
 } from 'lucide-react';
-import api from '../../services/api';
+
+import apiService from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
+// ==================== ADVANCED PREVIEW MODAL ====================
+const PreviewModal = ({ isOpen, onClose, resume, darkMode, onEdit }) => {
+  const [previewZoom, setPreviewZoom] = useState(1);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const [activeTab, setActiveTab] = useState('preview');
+  const [isExporting, setIsExporting] = useState(false);
+  const previewRef = useRef(null);
+
+  if (!isOpen || !resume) return null;
+
+  const handleEdit = () => {
+    onClose();
+    onEdit(resume);
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ scale: 0.9, y: 20 }}
+            animate={{ scale: 1, y: 0 }}
+            exit={{ scale: 0.9, y: 20 }}
+            className={`relative w-full max-w-6xl max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden ${darkMode ? 'bg-gray-900' : 'bg-white'
+              }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header with Edit Button */}
+            <div className={`flex items-center justify-between p-4 border-b ${darkMode ? 'border-gray-800' : 'border-gray-200'
+              }`}>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={onClose}
+                  className={`p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
+                    }`}
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <div>
+                  <h2 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                    {resume.title}
+                  </h2>
+                  <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                    {resume.personalInfo?.firstName} {resume.personalInfo?.lastName}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Edit Button in Preview */}
+                <motion.button
+                  onClick={handleEdit}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-700 hover:to-cyan-700 flex items-center gap-2 shadow-lg"
+                >
+                  <Edit className="w-4 h-4" />
+                  <span>Edit Resume</span>
+                </motion.button>
+                <button
+                  onClick={onClose}
+                  className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
+                    }`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Preview Content - Simplified for clarity */}
+            <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 80px)' }}>
+              <div className="max-w-4xl mx-auto">
+                <div className="bg-white p-8 rounded-xl shadow-lg">
+                  <h1 className="text-3xl font-bold mb-2">
+                    {resume.personalInfo?.firstName} {resume.personalInfo?.lastName}
+                  </h1>
+                  <p className="text-gray-600 mb-4">{resume.personalInfo?.email} • {resume.personalInfo?.phone}</p>
+
+                  {resume.summary && (
+                    <div className="mb-6">
+                      <h2 className="text-xl font-semibold mb-2">Summary</h2>
+                      <p className="text-gray-700">{resume.summary}</p>
+                    </div>
+                  )}
+
+                  {resume.experience?.length > 0 && (
+                    <div className="mb-6">
+                      <h2 className="text-xl font-semibold mb-4">Experience</h2>
+                      {resume.experience.map((exp, i) => (
+                        <div key={i} className="mb-4">
+                          <h3 className="font-semibold">{exp.title}</h3>
+                          <p className="text-gray-600">{exp.company}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
+// ==================== ADVANCED RESUME CARD ====================
+const ResumeCard = ({ resume, onEdit, onPreview, onDelete, onDuplicate, onToggleStar, onTogglePin, isSelected, onSelect, darkMode }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const [showActions, setShowActions] = useState(false);
+
+  const getScoreColor = (score) => {
+    if (score >= 80) return 'text-green-600 bg-green-100';
+    if (score >= 60) return 'text-yellow-600 bg-yellow-100';
+    return 'text-red-600 bg-red-100';
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed': return 'text-green-700 bg-green-100';
+      case 'in-progress': return 'text-blue-700 bg-blue-100';
+      default: return 'text-gray-700 bg-gray-100';
+    }
+  };
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      whileHover={{ y: -4 }}
+      onHoverStart={() => setIsHovered(true)}
+      onHoverEnd={() => setIsHovered(false)}
+      className={`relative p-5 rounded-xl border transition-all cursor-pointer ${isSelected
+        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-500/20'
+        : darkMode
+          ? 'bg-gray-800/50 border-gray-700 hover:border-blue-500/50 hover:bg-gray-800'
+          : 'bg-white border-gray-200 hover:border-blue-500/50 hover:shadow-xl'
+        }`}
+    >
+      {/* Selection Checkbox */}
+      <div className="absolute top-3 left-3 z-10">
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={() => onSelect(resume._id)}
+          onClick={(e) => e.stopPropagation()}
+          className="w-4 h-4 rounded border-gray-300 text-blue-600"
+        />
+      </div>
+
+      {/* Status Badge */}
+      <div className="absolute top-3 right-3 flex items-center gap-2">
+        {resume.isPrimary && (
+          <span className="px-2 py-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs rounded-full">
+            Primary
+          </span>
+        )}
+        <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(resume.status)}`}>
+          {resume.status}
+        </span>
+      </div>
+
+      {/* Content */}
+      <div className="mt-8">
+        <h3
+          className={`font-semibold text-lg mb-1 cursor-pointer hover:text-blue-600 transition-colors ${darkMode ? 'text-white' : 'text-gray-900'
+            }`}
+          onClick={() => onPreview(resume)}
+        >
+          {resume.title || 'Untitled Resume'}
+        </h3>
+
+        <p className={`text-sm mb-4 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+          {resume.personalInfo?.firstName} {resume.personalInfo?.lastName}
+          {!resume.personalInfo?.firstName && !resume.personalInfo?.lastName && 'No name'}
+        </p>
+
+        {/* Stats */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Target className="w-4 h-4 text-gray-400" />
+            <span className={`text-sm font-medium px-2 py-1 rounded-full ${getScoreColor(resume.analysis?.atsScore || 0)}`}>
+              {resume.analysis?.atsScore || 0}% ATS
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Eye className="w-3 h-3 text-gray-400" />
+            <span className="text-xs text-gray-500">{resume.views || 0}</span>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between text-xs mb-1">
+            <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Completion</span>
+            <span className="font-medium text-blue-600">{resume.analysis?.completeness || 0}%</span>
+          </div>
+          <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full transition-all duration-500"
+              style={{ width: `${resume.analysis?.completeness || 0}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between pt-3 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-500">
+              {new Date(resume.updatedAt).toLocaleDateString()}
+            </span>
+          </div>
+
+          {/* Icons */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleStar(resume._id, resume.isStarred); }}
+              className={`p-1.5 rounded-lg transition-colors ${resume.isStarred
+                ? 'text-amber-500'
+                : darkMode ? 'text-gray-500 hover:text-white' : 'text-gray-400 hover:text-gray-700'
+                }`}
+            >
+              <Star className="w-4 h-4" fill={resume.isStarred ? 'currentColor' : 'none'} />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onTogglePin(resume._id, resume.isPinned); }}
+              className={`p-1.5 rounded-lg transition-colors ${resume.isPinned
+                ? 'text-amber-500'
+                : darkMode ? 'text-gray-500 hover:text-white' : 'text-gray-400 hover:text-gray-700'
+                }`}
+            >
+              <Pin className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Action Buttons - Appear on Hover */}
+        <AnimatePresence>
+          {isHovered && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/80 via-black/60 to-transparent rounded-b-xl"
+            >
+              <div className="flex items-center justify-center gap-2">
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={(e) => { e.stopPropagation(); onPreview(resume); }}
+                  className="p-2 bg-white/20 hover:bg-white/30 rounded-lg text-white transition-colors"
+                  title="Quick Preview"
+                >
+                  <Eye className="w-4 h-4" />
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={(e) => { e.stopPropagation(); onEdit(resume); }}
+                  className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white transition-colors"
+                  title="Edit Resume"
+                >
+                  <Edit className="w-4 h-4" />
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={(e) => { e.stopPropagation(); onDuplicate(resume._id); }}
+                  className="p-2 bg-green-600/80 hover:bg-green-700 rounded-lg text-white transition-colors"
+                  title="Duplicate"
+                >
+                  <Copy className="w-4 h-4" />
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={(e) => { e.stopPropagation(); onDelete(resume); }}
+                  className="p-2 bg-red-600/80 hover:bg-red-700 rounded-lg text-white transition-colors"
+                  title="Delete"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </motion.button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </motion.div>
+  );
+};
+
+// ==================== MAIN RESUMES COMPONENT ====================
 const Resumes = () => {
   const navigate = useNavigate();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
-  // State management
+  // ============ STATE ============
   const [resumes, setResumes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -24,371 +330,490 @@ const Resumes = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [sortBy, setSortBy] = useState('updatedAt');
   const [sortOrder, setSortOrder] = useState('desc');
-  const [backendStatus, setBackendStatus] = useState('checking');
-  const [offlineQueueCount, setOfflineQueueCount] = useState(0);
-  const [showOfflineMode, setShowOfflineMode] = useState(false);
+  const [selectedResumes, setSelectedResumes] = useState([]);
 
-  // Load resumes
-  const loadResumes = useCallback(async (forceRefresh = false) => {
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+  // Modal States
+  const [resumeToPreview, setResumeToPreview] = useState(null);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [resumeToDelete, setResumeToDelete] = useState(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // UI States
+  const [darkMode, setDarkMode] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+
+  // ============ LOAD RESUMES ============
+  const loadResumes = useCallback(async () => {
+    if (!isAuthenticated || !user) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      console.log('Loading resumes...');
-      const data = await api.resume.getUserResumes(forceRefresh);
-
-      // Filter by current user
-      const userResumes = Array.isArray(data)
-        ? data.filter(resume =>
-          !resume.userId ||
-          resume.userId === user._id ||
-          resume.user === user._id
-        )
-        : [];
-
-      setResumes(userResumes);
-      console.log(`Loaded ${userResumes.length} resumes`);
-
-      // Update backend status
-      const health = await api.checkHealth();
-      setBackendStatus(health ? 'online' : 'offline');
-
+      const data = await apiService.resume.getUserResumes();
+      const resumesData = Array.isArray(data) ? data : [];
+      setResumes(resumesData);
     } catch (err) {
-      console.error('Error loading resumes:', err);
-
-      // Check if we have cached data
-      const cached = api.cache.get('user_resumes');
-      if (cached && cached.length > 0) {
-        const userResumes = cached.filter(r =>
-          !r.userId || r.userId === user._id || r.user === user._id
-        );
-        setResumes(userResumes);
-        toast.success('Using cached data', { icon: '💾' });
-      } else {
-        setError(err.message || 'Failed to load resumes');
-      }
-
-      setBackendStatus('offline');
-      setShowOfflineMode(true);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [isAuthenticated, user]);
 
-  // Load offline queue count
-  const loadOfflineQueue = useCallback(() => {
-    const queue = api.offlineQueue.getQueue();
-    setOfflineQueueCount(queue.length);
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      loadResumes();
+    }
+  }, [isAuthenticated, user, loadResumes]);
+
+  // ============ LOAD THEME ============
+  useEffect(() => {
+    const storedTheme = localStorage.getItem('theme');
+    setDarkMode(storedTheme === 'dark');
   }, []);
 
-  // Initialize
   useEffect(() => {
-    if (!authLoading && user) {
-      loadResumes();
-      loadOfflineQueue();
-
-      // Initialize API
-      api.init();
-
-      // Listen for offline queue updates
-      const handleQueueUpdate = () => {
-        loadOfflineQueue();
-      };
-
-      window.addEventListener('offlineQueueUpdated', handleQueueUpdate);
-
-      // Check backend status periodically
-      const healthCheckInterval = setInterval(async () => {
-        try {
-          const isHealthy = await api.checkHealth();
-          setBackendStatus(isHealthy ? 'online' : 'offline');
-          setShowOfflineMode(!isHealthy);
-        } catch {
-          setBackendStatus('offline');
-        }
-      }, 30000);
-
-      return () => {
-        window.removeEventListener('offlineQueueUpdated', handleQueueUpdate);
-        clearInterval(healthCheckInterval);
-      };
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
     }
-  }, [authLoading, user, loadResumes, loadOfflineQueue]);
+  }, [darkMode]);
 
-  // Handle create new resume
-  const handleCreateNew = async () => {
-    if (!user) {
-      toast.error('Please login to create a resume');
+  // ============ FILTER & SORT ============
+  const filteredResumes = useMemo(() => {
+    let filtered = [...resumes];
+
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(r =>
+        r.title?.toLowerCase().includes(term) ||
+        r.personalInfo?.firstName?.toLowerCase().includes(term) ||
+        r.personalInfo?.lastName?.toLowerCase().includes(term)
+      );
+    }
+
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(r => r.status === filterStatus);
+    }
+
+    filtered.sort((a, b) => {
+      const order = sortOrder === 'desc' ? -1 : 1;
+      const aVal = a[sortBy] || '';
+      const bVal = b[sortBy] || '';
+      return order * (aVal > bVal ? 1 : aVal < bVal ? -1 : 0);
+    });
+
+    return filtered;
+  }, [resumes, searchTerm, filterStatus, sortBy, sortOrder]);
+
+  // ============ STATS ============
+  const stats = useMemo(() => ({
+    total: resumes.length,
+    completed: resumes.filter(r => r.status === 'completed').length,
+    drafts: resumes.filter(r => r.status === 'draft').length,
+    inProgress: resumes.filter(r => r.status === 'in-progress').length,
+    avgAtsScore: resumes.length
+      ? Math.round(resumes.reduce((sum, r) => sum + (r.analysis?.atsScore || 0), 0) / resumes.length)
+      : 0
+  }), [resumes]);
+
+  // ============ ✅ SMART EDIT FUNCTION ============
+  const handleEditResume = useCallback((resume) => {
+    console.log('🚀 Opening builder for resume:', resume._id);
+
+    // Navigate to builder with the resume ID
+    // The builder will automatically load the resume data
+    navigate(`/builder/edit/${resume._id}`, {
+      state: {
+        fromResumes: true,
+        resumeData: resume, // Pass data for instant display
+        timestamp: Date.now()
+      }
+    });
+  }, [navigate]);
+
+  // ============ PREVIEW ============
+  const handlePreviewResume = useCallback((resume) => {
+    setResumeToPreview(resume);
+    setIsPreviewModalOpen(true);
+  }, []);
+
+  // ============ CREATE NEW ============
+  const handleCreateNew = useCallback(async () => {
+    if (!isAuthenticated) {
       navigate('/login');
       return;
     }
 
     try {
-      const newResumeData = {
-        title: `${user?.name?.split(' ')[0] || 'My'}'s Resume`,
+      toast.loading('Creating new resume...', { id: 'create' });
+
+      const newResume = await apiService.resume.createResume({
+        title: `${user?.name?.split(' ')[0] || 'New'}'s Resume`,
         personalInfo: {
           firstName: user?.name?.split(' ')[0] || '',
-          lastName: user?.name?.split(' ')[1] || '',
-          email: user?.email || '',
-          phone: '',
-          location: '',
-          website: '',
-          linkedin: '',
-          github: ''
-        },
-        summary: '',
-        experience: [],
-        education: [],
-        skills: [],
-        projects: [],
-        certifications: [],
-        languages: [],
-        references: [],
-        settings: {
-          template: 'modern',
-          color: '#3b82f6',
-          font: 'inter',
-          fontSize: 'medium'
-        },
-        status: 'draft',
-        isPrimary: resumes.length === 0,
-        userId: user._id,
-        user: user._id
-      };
+          lastName: user?.name?.split(' ').slice(1).join(' ') || '',
+          email: user?.email || ''
+        }
+      });
 
-      const createdResume = await api.resume.createResume(newResumeData);
-
-      // Normalize response (some endpoints return { data: resume })
-      const resumeObj = createdResume?.data || createdResume;
-
-      // Update local state
-      setResumes(prev => [resumeObj, ...prev]);
-      loadOfflineQueue();
-
-      toast.success(resumeObj.offline
-        ? 'Resume saved offline'
-        : 'Resume created successfully!'
-      );
-
-      // Navigate to edit page (or refresh if no valid id)
-      const newId = resumeObj._id || resumeObj.id || resumeObj.operationId;
-      if (newId && newId !== 'new') {
-        navigate(`/builder/edit/${newId}`);
-      } else {
-        // ensure list shows the created resume
-        loadResumes(true);
+      if (newResume?._id) {
+        toast.success('Resume created!', { id: 'create' });
+        handleEditResume(newResume); // Use the same edit function
       }
-    } catch (err) {
-      console.error('Create error:', err);
-      toast.error(err.message || 'Failed to create resume');
+    } catch (error) {
+      toast.error('Failed to create resume', { id: 'create' });
     }
-  };
+  }, [isAuthenticated, user, navigate, handleEditResume]);
 
-  // Handle sync all changes
-  const handleSyncAll = async () => {
+  // ============ DUPLICATE ============
+  const handleDuplicateResume = useCallback(async (resumeId) => {
     try {
-      toast.loading('Syncing offline changes...', { id: 'sync' });
-      const result = await api.sync();
-
-      if (result.success) {
-        toast.success(`Synced ${result.processed} changes!`, { id: 'sync' });
-        loadResumes(true); // Refresh with force
-        loadOfflineQueue();
-      } else {
-        toast.error('Sync failed', { id: 'sync' });
+      toast.loading('Duplicating...', { id: 'duplicate' });
+      const duplicated = await apiService.resume.duplicateResume(resumeId);
+      if (duplicated) {
+        setResumes(prev => [duplicated, ...prev]);
+        toast.success('Resume duplicated!', { id: 'duplicate' });
       }
-    } catch (err) {
-      toast.error('Sync error: ' + err.message, { id: 'sync' });
+    } catch (error) {
+      toast.error('Failed to duplicate', { id: 'duplicate' });
     }
-  };
+  }, []);
 
-  // Handle retry connection
-  const handleRetryConnection = async () => {
-    setLoading(true);
+  // ============ TOGGLE STAR ============
+  const handleToggleStar = useCallback(async (resumeId, isStarred) => {
     try {
-      const isHealthy = await api.checkHealth();
-      if (isHealthy) {
-        toast.success('Backend connected!');
-        setShowOfflineMode(false);
-        loadResumes(true);
-      } else {
-        toast.error('Still cannot connect to backend');
-      }
-    } catch {
-      toast.error('Connection failed');
+      await apiService.resume.updateResume(resumeId, { isStarred: !isStarred });
+      setResumes(prev => prev.map(r =>
+        r._id === resumeId ? { ...r, isStarred: !isStarred } : r
+      ));
+    } catch (error) {
+      toast.error('Failed to update star');
+    }
+  }, []);
+
+  // ============ TOGGLE PIN ============
+  const handleTogglePin = useCallback(async (resumeId, isPinned) => {
+    try {
+      await apiService.resume.updateResume(resumeId, { isPinned: !isPinned });
+      setResumes(prev => prev.map(r =>
+        r._id === resumeId ? { ...r, isPinned: !isPinned } : r
+      ));
+    } catch (error) {
+      toast.error('Failed to update pin');
+    }
+  }, []);
+
+  // ============ DELETE ============
+  const handleDeleteResume = useCallback((resume) => {
+    setResumeToDelete(resume);
+    setIsDeleteModalOpen(true);
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (!resumeToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      await apiService.resume.deleteResume(resumeToDelete._id);
+      setResumes(prev => prev.filter(r => r._id !== resumeToDelete._id));
+      toast.success('Resume deleted');
+    } catch (error) {
+      toast.error('Failed to delete');
     } finally {
-      setLoading(false);
+      setIsDeleting(false);
+      setIsDeleteModalOpen(false);
+      setResumeToDelete(null);
     }
-  };
+  }, [resumeToDelete]);
 
-  // Rest of the handlers remain the same as before...
-  // (handleDelete, handleExport, handleDuplicate, handleEdit, etc.)
+  // ============ SELECT ============
+  const handleSelectResume = useCallback((resumeId) => {
+    setSelectedResumes(prev =>
+      prev.includes(resumeId)
+        ? prev.filter(id => id !== resumeId)
+        : [...prev, resumeId]
+    );
+  }, []);
 
-  // Filter and sort resumes
-  const filteredResumes = resumes.filter(resume => {
-    const matchesSearch = searchTerm === '' ||
-      resume.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (resume.personalInfo?.firstName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (resume.personalInfo?.lastName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (resume.summary?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+  const handleSelectAll = useCallback(() => {
+    if (selectedResumes.length === filteredResumes.length) {
+      setSelectedResumes([]);
+    } else {
+      setSelectedResumes(filteredResumes.map(r => r._id));
+    }
+  }, [selectedResumes.length, filteredResumes]);
 
-    let matchesStatus = true;
-    if (filterStatus !== 'all') {
-      if (filterStatus === 'primary') {
-        matchesStatus = resume.isPrimary;
-      } else {
-        matchesStatus = resume.status === filterStatus;
+  // ============ BULK DELETE ============
+  const handleBulkDelete = useCallback(async () => {
+    if (selectedResumes.length === 0) return;
+
+    if (window.confirm(`Delete ${selectedResumes.length} resumes?`)) {
+      try {
+        toast.loading(`Deleting ${selectedResumes.length} resumes...`, { id: 'bulk' });
+        await Promise.all(selectedResumes.map(id => apiService.resume.deleteResume(id)));
+        setResumes(prev => prev.filter(r => !selectedResumes.includes(r._id)));
+        setSelectedResumes([]);
+        toast.success(`Deleted ${selectedResumes.length} resumes`, { id: 'bulk' });
+      } catch (error) {
+        toast.error('Bulk delete failed', { id: 'bulk' });
       }
     }
+  }, [selectedResumes]);
 
-    return matchesSearch && matchesStatus;
-  });
+  // ============ REFRESH ============
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await loadResumes();
+    setIsRefreshing(false);
+    toast.success('Resumes refreshed');
+  }, [loadResumes]);
 
-  // Sort resumes
-  const sortedResumes = [...filteredResumes].sort((a, b) => {
-    let aValue, bValue;
+  // ============ TOGGLE DARK MODE ============
+  const toggleDarkMode = useCallback(() => {
+    setDarkMode(prev => {
+      const newMode = !prev;
+      localStorage.setItem('theme', newMode ? 'dark' : 'light');
+      return newMode;
+    });
+  }, []);
 
-    switch (sortBy) {
-      case 'title':
-        aValue = a.title?.toLowerCase() || '';
-        bValue = b.title?.toLowerCase() || '';
-        break;
-      case 'updatedAt':
-        aValue = new Date(a.updatedAt || a.createdAt);
-        bValue = new Date(b.updatedAt || b.createdAt);
-        break;
-      case 'createdAt':
-        aValue = new Date(a.createdAt);
-        bValue = new Date(b.createdAt);
-        break;
-      case 'status':
-        aValue = a.status || '';
-        bValue = b.status || '';
-        break;
-      default:
-        aValue = a[sortBy];
-        bValue = b[sortBy];
-    }
-
-    if (sortOrder === 'asc') {
-      return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
-    } else {
-      return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
-    }
-  });
-
-  // Loading state
-  if (authLoading || (loading && user && resumes.length === 0)) {
+  // ============ LOADING ============
+  if (loading && resumes.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-blue-50/30 p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-center h-96">
-            <div className="text-center">
-              <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
-              <p className="text-gray-600">Loading your resumes...</p>
-              <p className="text-sm text-gray-500 mt-2">
-                {backendStatus === 'checking' ? 'Checking backend connection...' : ''}
-              </p>
-            </div>
-          </div>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
       </div>
     );
   }
 
-  // Connection error banner
-  const ConnectionBanner = () => (
-    <div className="mb-6">
-      <div className={`rounded-lg border p-4 ${showOfflineMode
-        ? 'bg-yellow-50 border-yellow-200'
-        : 'bg-green-50 border-green-200'
-        }`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {showOfflineMode ? (
-              <>
-                <WifiOff className="w-5 h-5 text-yellow-600" />
-                <div>
-                  <h4 className="font-medium text-yellow-800">Working in Offline Mode</h4>
-                  <p className="text-sm text-yellow-700">
-                    Cannot connect to backend server. Your changes will be saved locally.
-                  </p>
-                </div>
-              </>
-            ) : (
-              <>
-                <Wifi className="w-5 h-5 text-green-600" />
-                <div>
-                  <h4 className="font-medium text-green-800">Backend Connected</h4>
-                  <p className="text-sm text-green-700">
-                    Your data is syncing with the server.
-                  </p>
-                </div>
-              </>
-            )}
+  // ============ RENDER ============
+  return (
+    <div className={`min-h-screen transition-colors duration-200 ${darkMode ? 'bg-gray-900' : 'bg-gray-50'
+      } p-6`}>
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+          <div>
+            <h1 className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              My Resumes
+            </h1>
+            <p className={`text-sm mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              {stats.total} resumes • {stats.completed} completed • {stats.drafts} drafts
+            </p>
           </div>
 
-          {showOfflineMode && (
-            <div className="flex gap-2">
-              <button
-                onClick={handleRetryConnection}
-                className="px-3 py-1.5 bg-yellow-100 text-yellow-700 text-sm font-medium rounded-lg hover:bg-yellow-200 flex items-center gap-2"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Retry Connection
-              </button>
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={toggleDarkMode}
+              className={`p-2 rounded-xl border ${darkMode ? 'bg-gray-800 border-gray-700 text-gray-300' : 'bg-white border-gray-300 text-gray-700'
+                }`}
+            >
+              {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className={`p-2 rounded-xl border ${darkMode ? 'bg-gray-800 border-gray-700 text-gray-300' : 'bg-white border-gray-300 text-gray-700'
+                }`}
+            >
+              <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+
+            <button
+              onClick={handleCreateNew}
+              className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-700 hover:to-cyan-700 flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              New Resume
+            </button>
+          </div>
         </div>
-      </div>
-    </div>
-  );
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-blue-50/30 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Connection Status Banner */}
-        <ConnectionBanner />
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          {[
+            { label: 'Total', value: stats.total, icon: FileText, color: 'blue' },
+            { label: 'Completed', value: stats.completed, icon: CheckCircle, color: 'green' },
+            { label: 'In Progress', value: stats.inProgress, icon: Clock, color: 'yellow' },
+            { label: 'ATS Score', value: `${stats.avgAtsScore}%`, icon: Target, color: 'purple' }
+          ].map((stat, i) => (
+            <div key={i} className={`p-4 rounded-xl border ${darkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'
+              }`}>
+              <div className="flex items-center justify-between mb-2">
+                <stat.icon className={`w-5 h-5 text-${stat.color}-500`} />
+                <span className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  {stat.value}
+                </span>
+              </div>
+              <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{stat.label}</p>
+            </div>
+          ))}
+        </div>
 
-        {/* Offline Queue Indicator */}
-        {offlineQueueCount > 0 && (
-          <div className="mb-6">
-            <div className="bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-lg p-4 shadow-lg">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Database className="w-5 h-5" />
-                  <div>
-                    <h4 className="font-medium">
-                      {offlineQueueCount} pending change{offlineQueueCount !== 1 ? 's' : ''}
-                    </h4>
-                    <p className="text-sm opacity-90">
-                      Sync when you're back online
-                    </p>
-                  </div>
-                </div>
+        {/* Search and Filters */}
+        <div className="mb-6">
+          <div className="flex gap-4">
+            <div className="flex-1 relative">
+              <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${darkMode ? 'text-gray-500' : 'text-gray-400'
+                }`} />
+              <input
+                type="text"
+                placeholder="Search resumes..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className={`w-full pl-10 pr-4 py-2 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode
+                  ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500'
+                  : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                  }`}
+              />
+            </div>
+
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className={`px-3 py-2 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
+                }`}
+            >
+              <option value="all">All Status</option>
+              <option value="draft">Drafts</option>
+              <option value="in-progress">In Progress</option>
+              <option value="completed">Completed</option>
+            </select>
+
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className={`px-3 py-2 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 ${darkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
+                }`}
+            >
+              <option value="updatedAt">Last Updated</option>
+              <option value="createdAt">Date Created</option>
+              <option value="title">Title</option>
+              <option value="status">Status</option>
+            </select>
+
+            <button
+              onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
+              className={`px-3 py-2 rounded-xl border ${darkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-300 text-gray-900'
+                }`}
+            >
+              {sortOrder === 'desc' ? 'Desc' : 'Asc'}
+            </button>
+          </div>
+        </div>
+
+        {/* Bulk Actions */}
+        {selectedResumes.length > 0 && (
+          <div className={`mb-4 p-3 rounded-xl border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+            }`}>
+            <div className="flex items-center justify-between">
+              <span className={darkMode ? 'text-gray-300' : 'text-gray-700'}>
+                {selectedResumes.length} selected
+              </span>
+              <div className="flex gap-2">
                 <button
-                  onClick={handleSyncAll}
-                  className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                  onClick={handleBulkDelete}
+                  className="px-3 py-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
                 >
-                  <RefreshCw className="w-4 h-4" />
-                  Sync Now
+                  Delete Selected
+                </button>
+                <button
+                  onClick={() => setSelectedResumes([])}
+                  className={`px-3 py-1.5 rounded-lg border text-sm ${darkMode ? 'border-gray-600 text-gray-300' : 'border-gray-300 text-gray-700'
+                    }`}
+                >
+                  Clear
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* Rest of the component remains the same as before */}
-        {/* ... [Include the rest of your Resumes.jsx component] */}
-
+        {/* Resumes Grid */}
+        {filteredResumes.length === 0 ? (
+          <div className={`text-center py-16 rounded-xl border ${darkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-gray-200'
+            }`}>
+            <FileText className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+            <h3 className={`text-xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              No resumes found
+            </h3>
+            <button
+              onClick={handleCreateNew}
+              className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-700 hover:to-cyan-700 inline-flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Create Your First Resume
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <AnimatePresence>
+              {filteredResumes.map((resume) => (
+                <ResumeCard
+                  key={resume._id}
+                  resume={resume}
+                  onEdit={handleEditResume}
+                  onPreview={handlePreviewResume}
+                  onDelete={handleDeleteResume}
+                  onDuplicate={handleDuplicateResume}
+                  onToggleStar={handleToggleStar}
+                  onTogglePin={handleTogglePin}
+                  onSelect={handleSelectResume}
+                  isSelected={selectedResumes.includes(resume._id)}
+                  darkMode={darkMode}
+                />
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
       </div>
+
+      {/* Preview Modal */}
+      <PreviewModal
+        isOpen={isPreviewModalOpen}
+        onClose={() => setIsPreviewModalOpen(false)}
+        resume={resumeToPreview}
+        darkMode={darkMode}
+        onEdit={handleEditResume}
+      />
+
+      {/* Delete Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+          <div className={`relative w-full max-w-md rounded-2xl p-6 ${darkMode ? 'bg-gray-900' : 'bg-white'
+            }`}>
+            <h3 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Delete Resume
+            </h3>
+            <p className={`mb-6 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Are you sure you want to delete "{resumeToDelete?.title}"?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setIsDeleteModalOpen(false)}
+                className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-700'
+                  }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-export default Resumes;
+export default React.memo(Resumes);

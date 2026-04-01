@@ -417,4 +417,4 @@ const AISectionManager = ({
   );
 };
 
-export default AISectionManager;
+export default React.memo(AISectionManager);

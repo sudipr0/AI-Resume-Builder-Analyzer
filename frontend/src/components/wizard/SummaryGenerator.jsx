@@ -433,4 +433,4 @@ const SummaryGenerator = ({
   );
 };
 
-export default SummaryGenerator;
+export default React.memo(SummaryGenerator);

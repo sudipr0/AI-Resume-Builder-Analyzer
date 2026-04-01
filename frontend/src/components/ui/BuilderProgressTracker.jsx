@@ -116,4 +116,4 @@ const ProgressIndicator = ({ resumeData = {} }) => {
   );
 };
 
-export default ProgressIndicator;
+export default React.memo(ProgressIndicator);

@@ -59,4 +59,4 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, resume, isDeletin
   );
 };
 
-export default DeleteConfirmationModal;
+export default React.memo(DeleteConfirmationModal);

@@ -183,4 +183,4 @@ const ExportModal = ({ isOpen, onClose, onExport }) => {
   );
 };
 
-export default ExportModal;
+export default React.memo(ExportModal);

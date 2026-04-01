@@ -264,4 +264,4 @@ const SectionManager = ({
   );
 };
 
-export default SectionManager;
+export default React.memo(SectionManager);

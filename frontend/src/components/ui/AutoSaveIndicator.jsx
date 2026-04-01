@@ -25,4 +25,4 @@ export const AutoSaveIndicator = ({ saveStatus, lastSaveTime, autoSaveEnabled, o
   );
 };
 
-export default AutoSaveIndicator;
+export default React.memo(AutoSaveIndicator);

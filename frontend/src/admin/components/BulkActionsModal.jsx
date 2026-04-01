@@ -240,4 +240,4 @@ const BulkActionsModal = ({ isOpen, onClose, selectedCount, onAction }) => {
   );
 };
 
-export default BulkActionsModal;
+export default React.memo(BulkActionsModal);

@@ -408,4 +408,4 @@ const VerifyEmail = () => {
   );
 };
 
-export default VerifyEmail;
+export default React.memo(VerifyEmail);

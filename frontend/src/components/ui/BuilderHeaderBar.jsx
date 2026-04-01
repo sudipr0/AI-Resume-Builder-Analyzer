@@ -109,4 +109,4 @@ const BuilderHeaderBar = ({
     );
 };
 
-export default BuilderHeaderBar;
+export default React.memo(BuilderHeaderBar);

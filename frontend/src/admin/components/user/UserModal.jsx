@@ -435,4 +435,4 @@ const UserModal = ({ isOpen, onClose, user, mode, onSuccess }) => {
   );
 };
 
-export default UserModal;
+export default React.memo(UserModal);

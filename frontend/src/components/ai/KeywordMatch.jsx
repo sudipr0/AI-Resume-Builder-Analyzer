@@ -13,4 +13,4 @@ const KeywordMatch = ({ percent, missing }) => {
     );
 };
 
-export default KeywordMatch;
+export default React.memo(KeywordMatch);

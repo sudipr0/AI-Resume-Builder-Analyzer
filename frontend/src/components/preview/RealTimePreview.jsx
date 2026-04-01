@@ -2354,4 +2354,4 @@ const TemplateSelector = ({ isOpen, onClose, currentTemplate, onTemplateSelect }
   );
 };
 
-export default Builder;
+export default React.memo(Builder);

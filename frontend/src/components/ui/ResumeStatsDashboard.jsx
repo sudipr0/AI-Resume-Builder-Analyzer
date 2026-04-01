@@ -406,4 +406,4 @@ const ResumeStatsDashboard = ({ resumeData, atsScore = 0, suggestions = [], keyw
   );
 };
 
-export default ResumeStatsDashboard;
+export default React.memo(ResumeStatsDashboard);

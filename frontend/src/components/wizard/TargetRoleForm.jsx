@@ -889,4 +889,4 @@ Benefits:
     );
 };
 
-export default TargetRoleForm;
+export default React.memo(TargetRoleForm);

@@ -606,4 +606,4 @@ const SaveStatus = ({
   );
 };
 
-export default SaveStatus;
+export default React.memo(SaveStatus);

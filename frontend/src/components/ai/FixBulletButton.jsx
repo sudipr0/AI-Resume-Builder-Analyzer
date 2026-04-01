@@ -31,4 +31,4 @@ const FixBulletButton = ({ bullet, resume, onResumeUpdate }) => {
     );
 };
 
-export default FixBulletButton;
+export default React.memo(FixBulletButton);

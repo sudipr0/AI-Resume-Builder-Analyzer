@@ -974,4 +974,4 @@ const Logs = () => {
   );
 };
 
-export default Logs;
+export default React.memo(Logs);

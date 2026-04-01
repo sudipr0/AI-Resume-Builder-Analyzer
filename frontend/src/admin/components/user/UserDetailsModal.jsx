@@ -422,4 +422,4 @@ const UserDetailsModal = ({ isOpen, onClose, user }) => {
   );
 };
 
-export default UserDetailsModal;
+export default React.memo(UserDetailsModal);

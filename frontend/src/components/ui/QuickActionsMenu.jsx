@@ -240,4 +240,4 @@ QuickActionsMenu.defaultProps = {
   canDelete: false
 };
 
-export default QuickActionsMenu;
+export default React.memo(QuickActionsMenu);

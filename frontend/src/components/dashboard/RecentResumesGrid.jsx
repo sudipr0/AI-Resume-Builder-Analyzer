@@ -291,4 +291,4 @@ const RecentResumesGrid = ({
   );
 };
 
-export default RecentResumesGrid;
+export default React.memo(RecentResumesGrid);

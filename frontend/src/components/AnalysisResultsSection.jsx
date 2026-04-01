@@ -82,4 +82,4 @@ const AnalysisResultsSection = ({ analyses, totalSelected }) => {
   );
 };
 
-export default AnalysisResultsSection;
+export default React.memo(AnalysisResultsSection);

@@ -225,4 +225,4 @@ const DashboardNavbar = () => {
   );
 };
 
-export default DashboardNavbar;
+export default React.memo(DashboardNavbar);

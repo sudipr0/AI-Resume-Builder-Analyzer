@@ -119,4 +119,4 @@ const StatsCards = ({ stats, loading, socketConnected }) => {
   );
 };
 
-export default StatsCards;
+export default React.memo(StatsCards);

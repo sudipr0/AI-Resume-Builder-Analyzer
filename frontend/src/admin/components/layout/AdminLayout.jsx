@@ -444,4 +444,4 @@ const getPageInfo = (pathname) => {
   };
 };
 
-export default AdminLayout;
+export default React.memo(AdminLayout);

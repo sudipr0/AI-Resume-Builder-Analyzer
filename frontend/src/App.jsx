@@ -1,5 +1,5 @@
-// src/App.jsx - WITH FIX FOR UPLOAD ROUTE
-import React, { Suspense, lazy, useEffect, useState } from 'react';
+// src/App.jsx - FIXED WITH DECLARATIVE ROUTE GUARDS AND FUTURE FLAGS
+import React, { Suspense, lazy, useState, useEffect } from 'react';
 import {
   BrowserRouter as Router,
   Routes,
@@ -7,7 +7,6 @@ import {
   useParams,
   Navigate,
   useLocation,
-  useNavigate,
   Outlet
 } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
@@ -21,6 +20,9 @@ import { NotificationProvider } from './context/NotificationContext';
 import { ResumeProvider, useResume } from './context/ResumeContext';
 import { DashboardProvider } from './context/DashboardContext';
 import { AIProvider } from './context/AIContext';
+
+//analyzer
+import AnalysisHistoryPage from './pages/analyzer/AnalysisHistoryPage';
 
 // Global Components
 import Navbar from './components/Navbar';
@@ -124,7 +126,6 @@ const ResumeDetail = lazyWithRetry(() => import('./pages/dashboard/ResumeDetail'
 // Builder Pages
 const BuilderHome = lazyWithRetry(() => import('./pages/builder/BuilderHome'), 'Builder Home');
 const Builder = lazyWithRetry(() => import('./pages/builder/Builder'), 'Resume Builder');
-// ✅ IMPORTANT: Add the UploadResume import
 const UploadResume = lazyWithRetry(() => import('./pages/builder/UploadResume'), 'Upload Resume');
 const Preview = lazyWithRetry(() => import('./pages/builder/Preview'), 'Preview');
 const ShareResume = lazyWithRetry(() => import('./pages/builder/ShareResume'), 'Share Resume');
@@ -145,51 +146,50 @@ const AdminAnalytics = lazyWithRetry(() => import('./admin/pages/Analytics'), 'A
 const AdminSystem = lazyWithRetry(() => import('./admin/pages/System'), 'Admin System');
 const AdminLogs = lazyWithRetry(() => import('./admin/pages/Logs'), 'Admin Logs');
 
-// ================= ROUTE PROTECTION =================
+// ================= FIXED ROUTE PROTECTION - DECLARATIVE =================
 const ProtectedRoute = ({ children, requireVerified = false }) => {
   const { user, loading, isVerified } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!loading) {
-      if (!user) {
-        sessionStorage.setItem('redirect_after_login', location.pathname);
-        navigate('/login');
-      } else if (requireVerified && !isVerified) {
-        navigate('/verify-email');
-      }
-    }
-  }, [user, loading, isVerified, location, navigate, requireVerified]);
+  // Show loading while checking auth
+  if (loading) {
+    return <PageLoading />;
+  }
 
-  if (loading) return <PageLoading />;
-  if (!user || (requireVerified && !isVerified)) return null;
+  // Not authenticated - redirect to login
+  if (!user) {
+    sessionStorage.setItem('redirect_after_login', location.pathname);
+    return <Navigate to="/login" replace />;
+  }
 
+  // Requires verification but not verified
+  if (requireVerified && !isVerified) {
+    return <Navigate to="/verify-email" replace />;
+  }
+
+  // Authenticated - render children
   return children;
 };
 
+// FIXED: GuestRoute - declarative, no useEffect
 const GuestRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!loading && user) {
-      navigate('/dashboard');
-    }
-  }, [user, loading, navigate]);
+  if (loading) {
+    return <PageLoading />;
+  }
 
-  if (loading) return <PageLoading />;
-  if (user) return null;
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return children;
 };
 
-// ================= ADMIN ROUTE PROTECTION =================
+// ================= FIXED ADMIN ROUTE PROTECTION =================
 const AdminRoute = ({ children }) => {
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [checking, setChecking] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(null);
   const location = useLocation();
-  const navigate = useNavigate();
 
   useEffect(() => {
     const checkAdmin = () => {
@@ -216,13 +216,12 @@ const AdminRoute = ({ children }) => {
       } catch (error) {
         setIsAdmin(false);
       }
-      setChecking(false);
     };
 
     checkAdmin();
   }, [location.pathname]);
 
-  if (checking) {
+  if (isAdmin === null) {
     return <PageLoading />;
   }
 
@@ -230,7 +229,7 @@ const AdminRoute = ({ children }) => {
     if (location.pathname.startsWith('/admin') && location.pathname !== '/admin/login') {
       return <Navigate to="/admin/login" state={{ from: location.pathname }} replace />;
     }
-    return null;
+    return <Navigate to="/admin/login" replace />;
   }
 
   return children;
@@ -325,7 +324,6 @@ const ImportResumeWrapper = () => {
     }
   };
 
-  // ✅ Changed from ImportResume to UploadResume
   return <UploadResume onImportSuccess={handleImportSuccess} />;
 };
 
@@ -394,13 +392,33 @@ function AppContent() {
             <Route path="/terms" element={<TermsOfService />} />
           </Route>
 
-          {/* ================= AUTH ROUTES ================= */}
+          {/* ================= AUTH ROUTES - WITH GUEST ROUTE ================= */}
           <Route element={<AuthLayout />}>
-            <Route path="/login" element={<GuestRoute><Login /></GuestRoute>} />
-            <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
-            <Route path="/forgot-password" element={<GuestRoute><ForgotPassword /></GuestRoute>} />
-            <Route path="/reset-password/:token" element={<GuestRoute><ResetPassword /></GuestRoute>} />
-            <Route path="/verify-email/:token" element={<GuestRoute><VerifyEmail /></GuestRoute>} />
+            <Route path="/login" element={
+              <GuestRoute>
+                <Login />
+              </GuestRoute>
+            } />
+            <Route path="/register" element={
+              <GuestRoute>
+                <Register />
+              </GuestRoute>
+            } />
+            <Route path="/forgot-password" element={
+              <GuestRoute>
+                <ForgotPassword />
+              </GuestRoute>
+            } />
+            <Route path="/reset-password/:token" element={
+              <GuestRoute>
+                <ResetPassword />
+              </GuestRoute>
+            } />
+            <Route path="/verify-email/:token" element={
+              <GuestRoute>
+                <VerifyEmail />
+              </GuestRoute>
+            } />
             <Route path="/logout" element={<Logout />} />
 
             {/* OAuth Routes */}
@@ -412,8 +430,12 @@ function AppContent() {
             )}
           </Route>
 
-          {/* ================= DASHBOARD ROUTES ================= */}
-          <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
+          {/* ================= DASHBOARD ROUTES - WITH PROTECTED ROUTE ================= */}
+          <Route element={
+            <ProtectedRoute>
+              <DashboardLayout />
+            </ProtectedRoute>
+          }>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/resumes" element={<Resumes />} />
@@ -421,28 +443,39 @@ function AppContent() {
             <Route path="/resumes/:id/share" element={<ShareResume />} />
           </Route>
 
-          {/* ================= BUILDER ROUTES ================= */}
-          <Route element={<ProtectedRoute><BuilderLayout /></ProtectedRoute>}>
+          {/* ================= BUILDER ROUTES - WITH PROTECTED ROUTE ================= */}
+          <Route element={
+            <ProtectedRoute>
+              <BuilderLayout />
+            </ProtectedRoute>
+          }>
             <Route path="/builder" element={<BuilderHome />} />
             <Route path="/builder/templates" element={<TemplatePage />} />
             <Route path="/builder/preview/:id" element={<Preview />} />
-            {/* ✅ FIXED: Added UploadResume route */}
             <Route path="/builder/upload" element={<UploadResume />} />
           </Route>
 
           {/* Special Builder Routes with Data Passing */}
-          <Route element={<ProtectedRoute><BuilderLayout /></ProtectedRoute>}>
-            {/* ✅ FIXED: Changed /builder/import to /builder/upload to match your file */}
+          <Route element={
+            <ProtectedRoute>
+              <BuilderLayout />
+            </ProtectedRoute>
+          }>
             <Route path="/builder/import" element={<ImportResumeWrapper />} />
             <Route path="/builder/new" element={<BuilderWrapper isNew={true} />} />
             <Route path="/builder/edit/:id" element={<BuilderWrapper isNew={false} />} />
           </Route>
 
-          {/* ================= ANALYZER ROUTES ================= */}
-          <Route element={<ProtectedRoute><AnalyzerLayout /></ProtectedRoute>}>
+          {/* ================= ANALYZER ROUTES - WITH PROTECTED ROUTE ================= */}
+          <Route element={
+            <ProtectedRoute>
+              <AnalyzerLayout />
+            </ProtectedRoute>
+          }>
             <Route path="/analyzer" element={<AIAnalyzerPage />} />
             <Route path="/analyzer/results" element={<AnalyzerResults />} />
             <Route path="/analyzer/results/:id" element={<AnalyzerResults />} />
+            <Route path="/analyzer/history" element={<AnalysisHistoryPage />} />
           </Route>
 
           {/* ================= ADMIN ROUTES ================= */}
@@ -469,7 +502,6 @@ function AppContent() {
           <Route path="/create" element={<Navigate to="/builder" replace />} />
           <Route path="/build" element={<Navigate to="/builder" replace />} />
           <Route path="/create-resume" element={<Navigate to="/builder/new" replace />} />
-          {/* ✅ FIXED: Updated upload redirect to match your routing */}
           <Route path="/upload-resume" element={<Navigate to="/builder/upload" replace />} />
           <Route path="/templates" element={<Navigate to="/builder/templates" replace />} />
           <Route path="/analyze" element={<Navigate to="/analyzer" replace />} />
@@ -487,11 +519,17 @@ function AppContent() {
   );
 }
 
-// ================= MAIN APP =================
+// ================= MAIN APP WITH FUTURE FLAGS =================
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router>
+      {/* FIXED: Added future flags to eliminate warnings */}
+      <Router
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
         <ThemeProvider>
           <NotificationProvider>
             <AuthProvider>

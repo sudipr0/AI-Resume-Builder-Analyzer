@@ -23,4 +23,4 @@ const LoadingSpinnerComponent = ({ size = 'md', text = 'Loading...' }) => {
 
 // Export as BOTH named and default
 export const LoadingSpinner = LoadingSpinnerComponent;
-export default LoadingSpinnerComponent;
+export default React.memo(LoadingSpinnerComponent);

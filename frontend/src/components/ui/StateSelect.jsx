@@ -108,4 +108,4 @@ const StateSelect = ({ value, onChange, label = 'State', error, required = false
   );
 };
 
-export default StateSelect;
+export default React.memo(StateSelect);

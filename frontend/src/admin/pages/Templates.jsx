@@ -2492,4 +2492,4 @@ const Templates = () => {
   );
 };
 
-export default Templates;
+export default React.memo(Templates);

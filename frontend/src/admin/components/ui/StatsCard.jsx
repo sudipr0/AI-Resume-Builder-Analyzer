@@ -50,4 +50,4 @@ const StatsCard = ({
   );
 };
 
-export default StatsCard;
+export default React.memo(StatsCard);

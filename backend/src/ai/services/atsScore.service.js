@@ -1,20 +1,35 @@
-import { WEIGHTS } from "../utils/weights.js";
+// backend/src/ai/services/atsScore.service.js
+import aiService from '../ai.service.js';
 
-export const calcATSScore = ({ match, bullets, metrics, sections }) => {
-    const keywordScore = (match.percent || 0) * WEIGHTS.keyword;
-    const bulletScore = Math.max(0, 20 - (bullets.weak?.length || 0) * 2);
-    const metricScore = Math.min((metrics.count || 0) * 2, 10);
-    const sectionScore = 10 - (sections.missing?.length || 0) * 2;
+export class ATSScoreService {
+    static async calculateScore(resumeData, jobDescription) {
+        const result = await aiService.calculateATSScore(resumeData, jobDescription);
+        return result.data;
+    }
 
-    const total = Math.min(100, Math.round(keywordScore + bulletScore + metricScore + sectionScore));
+    static async getKeywordMatch(resumeData, jobDescription) {
+        const result = await aiService.analyzeResume(resumeData, jobDescription);
+        const data = result.data;
 
-    return {
-        total,
-        breakdown: {
-            keywordScore,
-            bulletScore,
-            metricScore,
-            sectionScore
-        }
-    };
-};
+        return {
+            matched: data.keywordMatch?.matchedKeywords || [],
+            missing: data.keywordMatch?.missingKeywords || [],
+            critical: data.keywordMatch?.criticalMissing || [],
+            byCategory: data.keywordMatch?.byCategory || {}
+        };
+    }
+
+    static async getImprovementTips(resumeData, jobDescription) {
+        const result = await aiService.analyzeResume(resumeData, jobDescription);
+        return result.data?.suggestions || [];
+    }
+
+    static async getDetailedBreakdown(resumeData, jobDescription) {
+        const result = await aiService.calculateATSScore(resumeData, jobDescription);
+        return result.data;
+    }
+}
+
+// For backward compatibility
+export const calculateATSScore = ATSScoreService.calculateScore;
+export const getKeywordMatchScore = ATSScoreService.getKeywordMatch;

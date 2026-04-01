@@ -1165,4 +1165,4 @@ const LanguageBuilder = ({
   );
 };
 
-export default LanguageBuilder;
+export default React.memo(LanguageBuilder);

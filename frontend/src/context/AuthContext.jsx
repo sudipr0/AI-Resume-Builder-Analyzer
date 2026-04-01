@@ -1,22 +1,19 @@
-// src/context/AuthContext.jsx - UPDATED WITH GOOGLE OAUTH
+// src/context/AuthContext.jsx - COMPLETELY FIXED VERSION
 import React, {
   createContext,
   useContext,
   useState,
   useEffect,
   useCallback,
-  useMemo
+  useMemo,
+  useRef
 } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-
-// Import our unified API service
 import apiService from '../services/api';
 
-// Create context
 const AuthContext = createContext(null);
 
-// Custom hook
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -25,7 +22,6 @@ export const useAuth = () => {
   return context;
 };
 
-// Storage keys
 const STORAGE_KEYS = {
   TOKEN: 'token',
   USER: 'user_data',
@@ -34,23 +30,42 @@ const STORAGE_KEYS = {
   REDIRECT_PATH: 'auth_redirect'
 };
 
-// Auth Provider Component
 export const AuthProvider = ({ children }) => {
   const navigate = useNavigate();
 
-  // State
   const [user, setUser] = useState(null);
+  const [token, setToken] = useState(localStorage.getItem(STORAGE_KEYS.TOKEN));
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isInitializing, setIsInitializing] = useState(true);
 
-  // Load user from storage on mount
+  const initCalledRef = useRef(false);
+  const verificationInProgressRef = useRef(false);
+
+  // ==================== DEBUG AUTH STATE ====================
+  useEffect(() => {
+    console.log('🔐 Auth State:', {
+      isAuthenticated: !!(token && user),
+      hasToken: !!token,
+      hasUser: !!user,
+      tokenPreview: token ? `${token.substring(0, 15)}...` : 'none',
+      userEmail: user?.email
+    });
+  }, [token, user]);
+
+  // ==================== FIXED INITIALIZE AUTH ====================
   useEffect(() => {
     const initAuth = async () => {
+      if (initCalledRef.current) {
+        console.log('⏭️ [AuthContext] Initialization already in progress, skipping...');
+        return;
+      }
+
+      initCalledRef.current = true;
+
       try {
         console.log('🔍 [AuthContext] Initializing authentication...');
 
-        // Check if we have stored auth data
         const storedUser = localStorage.getItem(STORAGE_KEYS.USER);
         const storedToken = localStorage.getItem(STORAGE_KEYS.TOKEN);
 
@@ -62,38 +77,43 @@ export const AuthProvider = ({ children }) => {
         if (storedUser && storedToken) {
           try {
             const parsedUser = JSON.parse(storedUser);
-            console.log('👤 [AuthContext] Found stored user:', {
-              id: parsedUser._id,
-              email: parsedUser.email,
-              name: parsedUser.name
-            });
 
-            // ✅ Set apiService token
-            apiService.setAuthToken(storedToken);
-
-            // Set user immediately for better UX
+            // Set optimistically
             setUser(parsedUser);
+            setToken(storedToken);
 
-            // Verify token with backend (silently)
-            try {
-              await apiService.get('/api/auth/verify');
-              console.log('✅ [AuthContext] Token is valid');
-            } catch (verifyError) {
-              console.warn('⚠️ [AuthContext] Token verification failed:', verifyError.message);
-              // Token is invalid, clear storage
+            // CRITICAL: Verify token BEFORE marking as authenticated
+            console.log('🔍 Verifying stored token...');
+            const verifyResult = await apiService.auth.verifyToken();
+
+            if (!verifyResult.success || !verifyResult.valid) {
+              console.warn('⚠️ [AuthContext] Token invalid on init, clearing session...');
               localStorage.removeItem(STORAGE_KEYS.TOKEN);
               localStorage.removeItem(STORAGE_KEYS.USER);
-              apiService.setAuthToken(null);
               setUser(null);
+              setToken(null);
+            } else {
+              console.log('✅ [AuthContext] Token is valid on init');
+              if (verifyResult.offline) {
+                toast('Working in offline mode', { icon: '📴' });
+              }
+              // Update user if returned
+              if (verifyResult.user && JSON.stringify(verifyResult.user) !== JSON.stringify(parsedUser)) {
+                localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(verifyResult.user));
+                setUser(verifyResult.user);
+              }
             }
           } catch (parseError) {
             console.error('❌ [AuthContext] Failed to parse stored user:', parseError);
             localStorage.removeItem(STORAGE_KEYS.TOKEN);
             localStorage.removeItem(STORAGE_KEYS.USER);
-            apiService.setAuthToken(null);
+            setUser(null);
+            setToken(null);
           }
         } else {
           console.log('👤 [AuthContext] No stored auth data found');
+          setUser(null);
+          setToken(null);
         }
 
         setError(null);
@@ -103,173 +123,20 @@ export const AuthProvider = ({ children }) => {
       } finally {
         setIsInitializing(false);
         setIsLoading(false);
-        console.log('✅ [AuthContext] Initialization complete');
       }
     };
 
     initAuth();
   }, []);
 
-  // Handle OAuth callback
-  const handleOAuthCallback = useCallback(async () => {
-    try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const token = urlParams.get('token');
-      const userData = urlParams.get('user');
-      const error = urlParams.get('error');
-      const state = urlParams.get('state');
-      const storedState = localStorage.getItem(STORAGE_KEYS.GOOGLE_STATE);
-      const redirectPath = localStorage.getItem(STORAGE_KEYS.REDIRECT_PATH) || '/dashboard';
-
-      console.log('🔄 [AuthContext] Handling OAuth callback:', { hasToken: !!token, error, state });
-
-      // Clean up
-      localStorage.removeItem(STORAGE_KEYS.GOOGLE_STATE);
-      localStorage.removeItem(STORAGE_KEYS.REDIRECT_PATH);
-
-      if (error) {
-        throw new Error(`OAuth error: ${decodeURIComponent(error)}`);
-      }
-
-      if (state && storedState && state !== storedState) {
-        throw new Error('Invalid state parameter. Possible security issue.');
-      }
-
-      if (token && userData) {
-        try {
-          const user = JSON.parse(decodeURIComponent(userData));
-
-          // Store auth data
-          localStorage.setItem(STORAGE_KEYS.TOKEN, token);
-          localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
-          apiService.setAuthToken(token);
-
-          setUser(user);
-
-          // Clean URL
-          window.history.replaceState({}, document.title, window.location.pathname);
-
-          // Navigate to original path or dashboard
-          navigate(redirectPath);
-          toast.success('Successfully logged in with Google!');
-
-          return { success: true, user, token };
-
-        } catch (parseError) {
-          console.error('❌ [AuthContext] Failed to parse user data:', parseError);
-          throw new Error('Failed to complete authentication');
-        }
-      } else {
-        throw new Error('No authentication data received');
-      }
-    } catch (error) {
-      console.error('❌ [AuthContext] OAuth callback error:', error);
-      toast.error(`Authentication failed: ${error.message}`);
-      navigate('/login');
-      return { success: false, error: error.message };
-    }
-  }, [navigate]);
-
-  // Google OAuth login
-  const loginWithGoogle = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      console.log('🔑 [AuthContext] Starting Google OAuth...');
-
-      // Generate state for security
-      const state = Math.random().toString(36).substring(2, 15);
-      localStorage.setItem(STORAGE_KEYS.GOOGLE_STATE, state);
-
-      // Store current path for redirect after login
-      localStorage.setItem(STORAGE_KEYS.REDIRECT_PATH, window.location.pathname);
-
-      // Get backend URL from apiService
-      const backendUrl = apiService.baseURL;
-
-      // Redirect to Google OAuth
-      const authUrl = `${backendUrl}/auth/google?state=${state}&redirect_uri=${encodeURIComponent(window.location.origin)}`;
-
-      console.log('📍 [AuthContext] Redirecting to:', authUrl);
-
-      // Open in new window for popup flow
-      const width = 500;
-      const height = 600;
-      const left = window.screenX + (window.outerWidth - width) / 2;
-      const top = window.screenY + (window.outerHeight - height) / 2;
-
-      const popup = window.open(
-        authUrl,
-        'Google Login',
-        `width=${width},height=${height},left=${left},top=${top}`
-      );
-
-      if (!popup) {
-        // If popup blocked, use redirect flow
-        console.log('⚠️ [AuthContext] Popup blocked, using redirect...');
-        window.location.href = authUrl;
-        return;
-      }
-
-      // Listen for popup completion
-      return new Promise((resolve, reject) => {
-        const checkPopup = setInterval(() => {
-          if (popup.closed) {
-            clearInterval(checkPopup);
-
-            // Check if we have auth data from redirect flow
-            const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
-            const user = localStorage.getItem(STORAGE_KEYS.USER);
-
-            if (token && user) {
-              // Already logged in via redirect
-              resolve({ success: true, token, user: JSON.parse(user) });
-            } else {
-              reject(new Error('Login cancelled or popup closed'));
-            }
-          }
-        }, 500);
-
-        // Timeout after 2 minutes
-        setTimeout(() => {
-          clearInterval(checkPopup);
-          if (!popup.closed) {
-            popup.close();
-          }
-          reject(new Error('Login timeout'));
-        }, 120000);
-      });
-
-    } catch (error) {
-      console.error('❌ [AuthContext] Google OAuth error:', error);
-
-      // Handle specific error types
-      if (error.message.includes('popup_closed_by_user')) {
-        toast.error('Login cancelled');
-      } else if (error.message.includes('access_denied')) {
-        toast.error('Access denied by Google');
-      } else if (error.message.includes('idpiframe_initialization_failed')) {
-        toast.error('Please enable third-party cookies');
-      } else {
-        toast.error('Google login failed. Please try again.');
-      }
-
-      return { success: false, error: error.message };
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  // Regular login
-  const login = useCallback(async (email, password, rememberMe = false, navigateCallback) => {
+  // ==================== FIXED LOGIN ====================
+  const login = useCallback(async (email, password, rememberMe = false) => {
     try {
       setIsLoading(true);
       setError(null);
 
       console.log('🔐 [AuthContext] Login attempt:', { email });
 
-      // Validation
       if (!email || !email.includes('@')) {
         throw new Error('Please enter a valid email address');
       }
@@ -277,7 +144,6 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Password must be at least 6 characters');
       }
 
-      // Use apiService for login
       const result = await apiService.auth.login(email, password);
 
       if (!result.success) {
@@ -289,36 +155,49 @@ export const AuthProvider = ({ children }) => {
         email: result.user.email
       });
 
-      // Store token + user
-      localStorage.setItem(STORAGE_KEYS.TOKEN, result.token);
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(result.user));
-      apiService.setAuthToken(result.token);
+      // Save token and user
+      if (result.token) {
+        localStorage.setItem(STORAGE_KEYS.TOKEN, result.token);
+        setToken(result.token);
+        console.log('📝 Token stored');
+      }
 
-      // Update state
-      setUser(result.user);
+      if (result.user) {
+        localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(result.user));
+        setUser(result.user);
+        console.log('📝 User data stored');
+      }
+
+      // CRITICAL: Verify token right after login
+      console.log('🔍 Verifying token after login...');
+      const verifyResult = await apiService.auth.verifyToken();
+
+      if (!verifyResult.success || !verifyResult.valid) {
+        console.warn('⚠️ Token verification failed after login');
+        localStorage.removeItem(STORAGE_KEYS.TOKEN);
+        localStorage.removeItem(STORAGE_KEYS.USER);
+        setToken(null);
+        setUser(null);
+        throw new Error('Authentication failed - invalid token');
+      }
+
+      console.log('✅ Token verified successfully after login');
+
       setError(null);
 
-      // Store remember me preference
       if (rememberMe) {
         localStorage.setItem(STORAGE_KEYS.REMEMBER_ME, 'true');
       } else {
         localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME);
       }
 
-      toast.success('Login successful!');
+      toast.success(`Welcome back, ${result.user.name || result.user.email}!`);
 
-      // Determine where to navigate
-      const nav = navigateCallback || navigate;
-      if (nav && typeof nav === 'function') {
-        const redirectPath = localStorage.getItem(STORAGE_KEYS.REDIRECT_PATH) || '/dashboard';
-        localStorage.removeItem(STORAGE_KEYS.REDIRECT_PATH);
-
-        console.log('📍 [AuthContext] Navigating to:', redirectPath);
-
-        setTimeout(() => {
-          nav(redirectPath, { replace: true });
-        }, 500);
-      }
+      console.log('📝 Login complete - State updated:', {
+        token: !!result.token,
+        user: !!result.user,
+        isAuthenticated: !!(result.token && result.user)
+      });
 
       return {
         success: true,
@@ -329,14 +208,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('❌ [AuthContext] Login error:', error);
 
-      let errorMessage = 'Login failed';
-      if (error.response?.data) {
-        const apiError = error.response.data;
-        errorMessage = apiError.error || apiError.message || error.message;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-
+      let errorMessage = error.message || 'Login failed';
       setError(errorMessage);
 
       if (!errorMessage.includes('Please enter')) {
@@ -345,45 +217,32 @@ export const AuthProvider = ({ children }) => {
 
       return {
         success: false,
-        error: errorMessage,
-        details: error.response?.data
+        error: errorMessage
       };
     } finally {
       setIsLoading(false);
     }
-  }, [navigate]);
-  // Registration - FIXED
-  const register = useCallback(async (name, email, password, confirmPassword, navigateCallback) => {
+  }, []);
+
+  // ==================== REGISTER ====================
+  const register = useCallback(async (name, email, password, confirmPassword) => {
     try {
       setIsLoading(true);
       setError(null);
 
       console.log('📝 [AuthContext] Registration attempt:', { name, email });
 
-      // Validation
       const errors = [];
 
-      if (!name?.trim()) {
-        errors.push('Name is required');
-      }
-
-      if (!email || !email.includes('@')) {
-        errors.push('Valid email is required');
-      }
-
-      if (!password || password.length < 6) {
-        errors.push('Password must be at least 6 characters');
-      }
-
-      if (password !== confirmPassword) {
-        errors.push('Passwords do not match');
-      }
+      if (!name?.trim()) errors.push('Name is required');
+      if (!email || !email.includes('@')) errors.push('Valid email is required');
+      if (!password || password.length < 6) errors.push('Password must be at least 6 characters');
+      if (password !== confirmPassword) errors.push('Passwords do not match');
 
       if (errors.length > 0) {
         throw new Error(errors.join(', '));
       }
 
-      // ✅ FIXED: Use auth.register instead of direct post
       const result = await apiService.auth.register({
         name: String(name).trim(),
         email: String(email).trim().toLowerCase(),
@@ -397,47 +256,39 @@ export const AuthProvider = ({ children }) => {
 
       console.log('✅ [AuthContext] Registration successful:', result.user?.email);
 
-      // Store token + user
-      localStorage.setItem(STORAGE_KEYS.TOKEN, result.token);
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(result.user || result));
-      apiService.setAuthToken(result.token);
-
-      // Update state
-      setUser(result.user || result);
-      setError(null);
-
-      toast.success('🎉 Account created successfully!');
-
-      // Navigate to dashboard
-      const nav = navigateCallback || navigate;
-      if (nav && typeof nav === 'function') {
-        setTimeout(() => {
-          nav('/dashboard', { replace: true });
-        }, 1500);
+      if (result.token) {
+        localStorage.setItem(STORAGE_KEYS.TOKEN, result.token);
+        setToken(result.token);
+        console.log('📝 Token stored');
       }
+
+      if (result.user) {
+        localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(result.user));
+        setUser(result.user);
+        console.log('📝 User data stored');
+      }
+
+      // Verify token after registration
+      const verifyResult = await apiService.auth.verifyToken();
+      if (!verifyResult.success || !verifyResult.valid) {
+        throw new Error('Token verification failed');
+      }
+
+      setError(null);
+      toast.success('🎉 Account created successfully!');
 
       return {
         success: true,
-        user: result.user || result,
+        user: result.user,
         token: result.token
       };
 
     } catch (error) {
       console.error('❌ [AuthContext] Registration error:', error);
 
-      // Extract error message safely
-      let errorMessage = 'Registration failed. Please try again.';
-
-      if (error.response?.data) {
-        const apiError = error.response.data;
-        errorMessage = apiError.error || apiError.message || error.message;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-
+      let errorMessage = error.message || 'Registration failed. Please try again.';
       setError(errorMessage);
 
-      // Show toast only for specific errors
       if (!errorMessage.includes('required') && !errorMessage.includes('match')) {
         toast.error(errorMessage, { duration: 5000 });
       }
@@ -449,167 +300,148 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [navigate]);
-  // Logout
-  const logout = useCallback((navigateCallback) => {
+  }, []);
+
+  // ==================== LOGOUT ====================
+  const logout = useCallback(async () => {
     console.log('👋 [AuthContext] Logging out...');
 
-    // Call API logout
-    apiService.auth.logout();
-    apiService.setAuthToken(null);
+    setIsLoading(true);
 
-    // Complete storage cleanup
-    localStorage.removeItem(STORAGE_KEYS.TOKEN);
-    localStorage.removeItem(STORAGE_KEYS.USER);
-    localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME);
-    localStorage.removeItem(STORAGE_KEYS.GOOGLE_STATE);
-    localStorage.removeItem(STORAGE_KEYS.REDIRECT_PATH);
+    try {
+      await apiService.auth.logout().catch(() => { });
+    } catch (error) {
+      console.warn('⚠️ [AuthContext] Logout API call failed:', error.message);
+    } finally {
+      localStorage.removeItem(STORAGE_KEYS.TOKEN);
+      localStorage.removeItem(STORAGE_KEYS.USER);
+      localStorage.removeItem(STORAGE_KEYS.REMEMBER_ME);
+      localStorage.removeItem(STORAGE_KEYS.GOOGLE_STATE);
+      localStorage.removeItem(STORAGE_KEYS.REDIRECT_PATH);
 
-    // Update state
-    setUser(null);
-    setError(null);
+      setUser(null);
+      setToken(null);
+      setError(null);
+      setIsLoading(false);
 
-    console.log('✅ [AuthContext] Logout complete');
+      console.log('✅ [AuthContext] Logout complete');
+      toast.success('Logged out successfully!');
 
-    // Navigate to home
-    const nav = navigateCallback || navigate;
-    if (nav && typeof nav === 'function') {
-      nav('/', { replace: true });
+      // Navigate to home
+      navigate('/', { replace: true });
     }
   }, [navigate]);
 
-  // Clear error
-  const clearError = useCallback(() => {
-    setError(null);
-  }, []);
-
-  // Get user ID
-  const getUserId = useCallback(() => {
-    return user?._id || user?.id || null;
-  }, [user]);
-
-  // Get token from localStorage
-  const getToken = useCallback(() => {
-    return localStorage.getItem(STORAGE_KEYS.TOKEN);
-  }, []);
-
-  // Update user profile
-  const updateUser = useCallback(async (updatedData) => {
+  // ==================== GOOGLE OAUTH ====================
+  const loginWithGoogle = useCallback(async () => {
     try {
-      console.log('📝 [AuthContext] Updating user profile...');
+      setIsLoading(true);
+      setError(null);
 
-      const result = await apiService.auth.updateProfile(updatedData);
+      const config = await apiService.auth.getOAuthConfig();
 
-      if (result?.success) {
-        const updatedUser = {
-          ...user,
-          ...updatedData,
-          ...(result.user || result.data || {})
-        };
-
-        localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUser));
-        setUser(updatedUser);
-
-        console.log('✅ [AuthContext] User profile updated');
-        return updatedUser;
+      if (!config.googleOAuth.enabled) {
+        toast.error('Google login is not configured');
+        return { success: false };
       }
 
-      throw new Error('Failed to update profile');
-    } catch (error) {
-      console.error('❌ [AuthContext] Update user error:', error);
-      throw error;
-    }
-  }, [user]);
+      const state = Math.random().toString(36).substring(2, 15);
+      localStorage.setItem(STORAGE_KEYS.GOOGLE_STATE, state);
 
-  // Verify token with backend
-  const verifyToken = useCallback(async () => {
+      const authUrl = `${apiService.baseURL}/api/auth/google?state=${state}`;
+      window.location.href = authUrl;
+
+      return { success: true };
+
+    } catch (error) {
+      console.error('❌ [AuthContext] Google OAuth error:', error);
+      toast.error('Google login failed');
+      setIsLoading(false);
+      return { success: false };
+    }
+  }, []);
+
+  // ==================== HANDLE OAUTH CALLBACK ====================
+  const handleOAuthCallback = useCallback(async () => {
     try {
-      const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
-      if (!token) return false;
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
+      const userData = urlParams.get('user');
+      const error = urlParams.get('error');
+      const state = urlParams.get('state');
+      const storedState = localStorage.getItem(STORAGE_KEYS.GOOGLE_STATE);
 
-      // ✅ FIXED: Use correct endpoint
-      await apiService.get('/api/auth/verify');
-      return true;
+      localStorage.removeItem(STORAGE_KEYS.GOOGLE_STATE);
+
+      if (error) {
+        throw new Error(`OAuth error: ${decodeURIComponent(error)}`);
+      }
+
+      if (state && storedState && state !== storedState) {
+        throw new Error('Invalid state parameter');
+      }
+
+      if (token && userData) {
+        const user = JSON.parse(decodeURIComponent(userData));
+
+        localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+        localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+
+        setUser(user);
+        setToken(token);
+
+        window.history.replaceState({}, document.title, window.location.pathname);
+        toast.success('Successfully logged in with Google!');
+
+        return { success: true, user, token };
+      }
+
+      throw new Error('No authentication data received');
+
     } catch (error) {
-      console.warn('⚠️ [AuthContext] Token verification failed:', error.message);
-      return false;
+      console.error('❌ [AuthContext] OAuth callback error:', error);
+      toast.error(`Authentication failed: ${error.message}`);
+      return { success: false, error: error.message };
     }
   }, []);
 
-
-  // Set redirect path
-  const setRedirectPath = useCallback((path) => {
-    localStorage.setItem(STORAGE_KEYS.REDIRECT_PATH, path);
+  // ==================== VERIFY TOKEN ====================
+  const verifyToken = useCallback(async () => {
+    return apiService.auth.verifyToken();
   }, []);
 
-  // Check if user is authenticated
+  // ==================== COMPUTED VALUES ====================
   const isAuthenticated = useMemo(() => {
-    const hasToken = !!localStorage.getItem(STORAGE_KEYS.TOKEN);
-    const hasUser = !!localStorage.getItem(STORAGE_KEYS.USER);
-    return !!(user && hasToken && hasUser);
-  }, [user]);
+    return !!(token && user);
+  }, [user, token]);
 
-  // Check if user is admin
-  const isAdmin = useMemo(() => {
-    return user?.role === 'admin' || user?.role === 'super_admin';
-  }, [user]);
-
-  // Check if user is verified
-  const isVerified = useMemo(() => {
-    return user?.isVerified || user?.emailVerified || false;
-  }, [user]);
-
-  // Context value
+  // ==================== CONTEXT VALUE ====================
   const value = useMemo(() => ({
-    // State
     user,
+    token,
     isLoading,
     error,
     isInitializing,
-
-    // Status
     isAuthenticated,
-    isAdmin,
-    isVerified,
-
-    // Data
-    token: getToken(),
-    userId: getUserId(),
-
-    // Actions
     login,
     register,
+    logout,
     loginWithGoogle,
     handleOAuthCallback,
-    logout,
-    clearError,
-    updateUser,
     verifyToken,
-    setRedirectPath,
-
-    // Utility
-    getToken,
-    getUserId
+    getUserId: () => user?._id || user?.id || null,
+    getToken: () => token
   }), [
-    user, isLoading, error, isInitializing,
-    isAuthenticated, isAdmin, isVerified,
-    getToken, getUserId,
-    login, register, loginWithGoogle, handleOAuthCallback, logout, clearError,
-    updateUser, verifyToken, setRedirectPath
+    user, token, isLoading, error, isInitializing, isAuthenticated,
+    login, register, logout, loginWithGoogle, handleOAuthCallback, verifyToken
   ]);
 
-  // Show loading while initializing
   if (isInitializing) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-gray-800">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-blue-50">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-300 font-medium">
-            Initializing authentication...
-          </p>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Checking your session...
-          </p>
+          <p className="mt-4 text-gray-600 font-medium">Loading...</p>
         </div>
       </div>
     );
@@ -622,4 +454,4 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-export default AuthContext;
+export default React.memo(AuthProvider);

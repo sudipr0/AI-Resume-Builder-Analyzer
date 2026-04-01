@@ -358,4 +358,4 @@ const SmartInput = ({
 
 // Add both named and default export
 export { SmartInput };
-export default SmartInput;
+export default React.memo(SmartInput);

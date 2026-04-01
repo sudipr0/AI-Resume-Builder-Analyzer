@@ -336,4 +336,4 @@ const EntryScreen = ({ onSelectMode, onMagicBuild, isMagicBuilding, magicBuildPr
   );
 };
 
-export default EntryScreen;
+export default React.memo(EntryScreen);

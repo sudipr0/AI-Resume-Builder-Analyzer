@@ -552,4 +552,4 @@ const Code = ({ className }) => (
     </svg>
 );
 
-export default ShareResume;
+export default React.memo(ShareResume);

@@ -1,8 +1,7 @@
-// src/context/ResumeContext.jsx - FULL REWRITE - FIXED ALL ISSUES
+// src/context/ResumeContext.jsx - FIXED VERSION
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import apiService from '../services/api';
 import { toast } from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
+import apiService from '../services/api';
 
 const ResumeContext = createContext();
 
@@ -14,439 +13,672 @@ export const useResume = () => {
   return context;
 };
 
-// Empty resume template (same style as yours)
-const getEmptyResume = (userId = 'demo-user-123') => ({
-  _id: 'new',
-  id: 'new',
-  userId,
-  title: 'Untitled Resume',
-  template: 'modern',
-  status: 'draft',
-  personalInfo: {
-    fullName: '',
-    email: '',
-    phone: '',
-    location: '',
-    website: '',
-    linkedin: '',
-    github: '',
-    summary: ''
-  },
-  experience: [],
-  education: [],
-  skills: [],
-  projects: [],
-  certifications: [],
-  languages: [],
-  references: [],
-  analysis: {
-    atsScore: 0,
-    completeness: 0,
-    suggestions: ['Add more details to improve your resume']
-  },
-  settings: {
-    template: 'modern',
-    color: '#3b82f6',
-    font: 'inter',
-    fontSize: 'medium'
-  },
-  tags: [],
-  views: 0,
-  downloads: 0,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  version: 1
-});
-
 export const ResumeProvider = ({ children }) => {
-  // ────────────────────────────────────────────────
-  // STATE
-  // ────────────────────────────────────────────────
   const [resumes, setResumes] = useState([]);
   const [currentResume, setCurrentResume] = useState(null);
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
-  const [cloudStatus, setCloudStatus] = useState({
-    isConnected: false,
-    lastSynced: null,
-    mode: 'offline'
-  });
   const [isSaving, setIsSaving] = useState(false);
+  const [syncInProgress, setSyncInProgress] = useState(false);
+  const [offlineMode, setOfflineMode] = useState(!navigator.onLine);
 
-  // ────────────────────────────────────────────────
-  // REFS (prevent loops & stale closures)
-  // ────────────────────────────────────────────────
-  const hasLoadedRef = useRef(false);
-  const loadCountRef = useRef(0);
-  const saveTimeoutRef = useRef(null);
   const mountedRef = useRef(true);
-  const navigate = useNavigate();
+  const saveTimeoutRef = useRef(null);
+  const syncAttemptsRef = useRef({});
 
-  // ────────────────────────────────────────────────
-  // HELPERS
-  // ────────────────────────────────────────────────
-  const getUserId = useCallback(() => {
-    try {
-      const userData = localStorage.getItem('user_data');
-      if (userData) {
-        const user = JSON.parse(userData);
-        return user._id || user.id || 'demo-user-123';
-      }
-    } catch (err) {
-      console.warn('Error parsing user data:', err);
-    }
-    return 'demo-user-123';
-  }, []);
+  console.log('🔥 ResumeContext initialized', { online: navigator.onLine });
 
-  // ────────────────────────────────────────────────
-  // INITIALIZATION
-  // ────────────────────────────────────────────────
+  // ==================== ONLINE/OFFLINE DETECTION ====================
   useEffect(() => {
-    const initialize = async () => {
-      if (hasLoadedRef.current) return;
-      hasLoadedRef.current = true;
-
-      console.log('🔄 Initializing ResumeContext...');
-
-      // Auto-create new resume if none exists
-      if (!currentResume && !loading) {
-        console.log('No current resume → auto-creating new one');
-        await createResume();
-      }
-
-      await loadResumes();
+    const handleOnline = () => {
+      console.log('🌐 Back online');
+      setOfflineMode(false);
+      syncAllLocalResumes();
+      loadResumes(true);
     };
 
-    initialize();
+    const handleOffline = () => {
+      console.log('📴 Offline mode activated');
+      setOfflineMode(true);
+      toast('You are offline. Changes will be saved locally.', { icon: '📴' });
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
 
     return () => {
-      mountedRef.current = false;
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
   }, []);
 
-  // ────────────────────────────────────────────────
-  // LOAD RESUMES (with force refresh option)
-  // ────────────────────────────────────────────────
+  // ==================== SYNC ALL LOCAL RESUMES TO SERVER ====================
+  const syncAllLocalResumes = useCallback(async () => {
+    if (syncInProgress || offlineMode) return;
+
+    const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
+    const unsyncedLocal = localResumes.filter(r => r._id?.startsWith('local_'));
+
+    if (unsyncedLocal.length === 0) return;
+
+    setSyncInProgress(true);
+    console.log('🔄 Syncing local resumes to server...', unsyncedLocal.length);
+
+    const toastId = toast.loading(`Syncing ${unsyncedLocal.length} local resume(s)...`);
+    let syncedCount = 0;
+    const failedResumes = [];
+
+    for (const resume of unsyncedLocal) {
+      const attempts = syncAttemptsRef.current[resume._id] || 0;
+      if (attempts > 3) {
+        console.warn('⚠️ Too many sync attempts for resume:', resume._id);
+        failedResumes.push(resume);
+        continue;
+      }
+
+      try {
+        const resumeToSync = { ...resume };
+        delete resumeToSync._id;
+        delete resumeToSync.id;
+        delete resumeToSync.offline;
+
+        if (!resumeToSync.personalInfo) {
+          resumeToSync.personalInfo = {};
+        }
+
+        const saved = await apiService.resume.createResume(resumeToSync);
+        console.log(`✅ Synced ${resume._id} → ${saved._id}`);
+        syncedCount++;
+
+        delete syncAttemptsRef.current[resume._id];
+
+        setResumes(prev => {
+          const filtered = prev.filter(r => r._id !== resume._id);
+          return [saved, ...filtered];
+        });
+
+        setCurrentResume(prev => {
+          if (prev?._id === resume._id) {
+            return saved;
+          }
+          return prev;
+        });
+
+      } catch (err) {
+        console.warn(`⚠️ Sync failed for ${resume._id}:`, err.message);
+        syncAttemptsRef.current[resume._id] = attempts + 1;
+        failedResumes.push(resume);
+      }
+    }
+
+    const remainingLocal = [
+      ...failedResumes,
+      ...localResumes.filter(r => !r._id?.startsWith('local_'))
+    ];
+    localStorage.setItem('local_resumes', JSON.stringify(remainingLocal));
+
+    if (syncedCount > 0) {
+      toast.success(`✅ Synced ${syncedCount} resume(s) to server!`, { id: toastId });
+      await loadResumes(true);
+    } else if (failedResumes.length > 0) {
+      toast.error(`Failed to sync ${failedResumes.length} resume(s)`, { id: toastId });
+    } else {
+      toast.dismiss(toastId);
+    }
+
+    setSyncInProgress(false);
+  }, [offlineMode, syncInProgress]);
+
+  // ==================== LOAD ALL RESUMES ====================
   const loadResumes = useCallback(async (force = false) => {
-    if (!force && hasLoadedRef.current && loadCountRef.current > 0) {
-      console.log('📦 Using cached resumes');
-      return resumes;
+    console.log('🔄 loadResumes called', { force, offlineMode });
+
+    if (!force && resumes.length > 0 && !loading) {
+      console.log('⏭️ Using cached resumes');
+      return;
     }
 
-    if (loadCountRef.current >= 5) {
-      console.warn('Too many load attempts — stopping');
-      return resumes;
-    }
-
-    loadCountRef.current++;
     setLoading(true);
     setError(null);
 
     try {
-      console.log(`📥 Loading resumes (attempt ${loadCountRef.current})...`);
-      const resumesData = await apiService.resume.getUserResumes();
+      let loadedResumes = [];
+      const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
 
-      if (!mountedRef.current) return;
+      if (!offlineMode) {
+        try {
+          const serverResumes = await apiService.resume.getUserResumes();
+          console.log('✅ API resumes loaded:', serverResumes.length);
 
-      if (Array.isArray(resumesData) && resumesData.length > 0) {
-        console.log(`✅ Loaded ${resumesData.length} resumes`);
-        setResumes(resumesData);
-        setCloudStatus({
-          isConnected: true,
-          lastSynced: new Date(),
-          mode: 'online'
-        });
+          const serverIds = new Set(serverResumes.map(r => r._id));
+          const unsyncedLocal = localResumes.filter(r => !serverIds.has(r._id) && r._id?.startsWith('local_'));
+
+          loadedResumes = [...serverResumes, ...unsyncedLocal];
+
+          if (unsyncedLocal.length > 0) {
+            toast(`${unsyncedLocal.length} local resume(s) waiting to sync`, { icon: '📦' });
+          }
+        } catch (apiError) {
+          console.log('⚠️ API failed, using local only:', apiError);
+          loadedResumes = localResumes;
+        }
       } else {
-        console.log('📭 No resumes found — starting fresh');
-        setResumes([]);
-        setCloudStatus({
-          isConnected: false,
-          lastSynced: new Date(),
-          mode: 'offline'
-        });
+        loadedResumes = localResumes;
+        console.log('📦 Offline mode - local resumes:', loadedResumes.length);
       }
 
-      // Also refresh stats
-      try {
-        const statsData = await apiService.dashboard.getDashboardStats();
-        if (mountedRef.current && statsData) setStats(statsData);
-      } catch (statsErr) {
-        console.warn('Stats load failed:', statsErr.message);
-      }
-
+      setResumes(loadedResumes);
       setLastUpdated(new Date());
-      return resumesData;
     } catch (err) {
-      console.error('❌ Load resumes failed:', err);
-      if (mountedRef.current) {
-        setError(err.message || 'Failed to load resumes');
-        setCloudStatus(prev => ({ ...prev, mode: 'offline' }));
-        toast.error('Failed to load resumes. Working offline.');
-      }
-      return [];
+      console.error('❌ Fatal error in loadResumes:', err);
+      setError(err.message);
+      toast.error('Failed to load resumes');
     } finally {
-      if (mountedRef.current) setLoading(false);
+      setLoading(false);
     }
-  }, [resumes]);
+  }, [resumes.length, loading, offlineMode]);
 
-  // ────────────────────────────────────────────────
-  // LOAD SINGLE RESUME
-  // ────────────────────────────────────────────────
+  // ==================== LOAD SINGLE RESUME ====================
   const loadResume = useCallback(async (id) => {
-    if (!id || id === 'new') {
-      const empty = getEmptyResume(getUserId());
-      if (mountedRef.current) setCurrentResume(empty);
-      return empty;
+    console.log('🔍 loadResume called with id:', id);
+
+    if (!id || id === 'new' || id === 'new-resume') {
+      console.log('📝 Creating empty resume for new');
+      setCurrentResume(apiService.resume.getEmptyResume());
+      return;
     }
 
     setLoading(true);
+    setError(null);
 
     try {
-      console.log(`📥 Loading resume: ${id}`);
+      let resume = null;
 
-      // Check local first
-      const local = resumes.find(r => r._id === id || r.id === id);
-      if (local) {
-        console.log('✅ Found in local state');
-        if (mountedRef.current) setCurrentResume(local);
-        return local;
+      const fromState = resumes.find(r => r._id === id || r.id === id);
+      if (fromState) {
+        console.log('💾 Loaded from state:', id);
+        setCurrentResume(fromState);
+        setLoading(false);
+        return fromState;
       }
 
-      // Fetch from server
-      const data = await apiService.resume.getResume(id);
+      const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
+      resume = localResumes.find(r => r._id === id || r.id === id);
 
-      if (!mountedRef.current) return data;
+      if (resume) {
+        console.log('📦 Loaded from localStorage:', id);
+        setCurrentResume(resume);
 
-      console.log('✅ Resume loaded from server');
-      setCurrentResume(data);
-      setCloudStatus(prev => ({ ...prev, isConnected: true, mode: 'online' }));
-      return data;
+        setResumes(prev => {
+          const exists = prev.some(r => r._id === id);
+          if (!exists) {
+            return [resume, ...prev];
+          }
+          return prev;
+        });
+
+        if (!offlineMode && id.startsWith('local_')) {
+          const hasData = resume.personalInfo?.firstName ||
+            resume.summary ||
+            (resume.experience?.length > 0);
+
+          if (hasData) {
+            console.log('🔄 Local resume has data, will sync to server soon');
+            setTimeout(() => {
+              syncSingleResumeToServer(resume);
+            }, 2000);
+          }
+        }
+
+        setLoading(false);
+        return resume;
+      }
+
+      if (!offlineMode && !id.startsWith('local_')) {
+        try {
+          resume = await apiService.resume.getResume(id);
+          console.log('✅ Loaded from API:', id);
+
+          setCurrentResume(resume);
+          setResumes(prev => {
+            const exists = prev.some(r => r._id === id);
+            if (exists) {
+              return prev.map(r => r._id === id ? resume : r);
+            }
+            return [resume, ...prev];
+          });
+
+          setLoading(false);
+          return resume;
+
+        } catch (apiError) {
+          console.log('⚠️ API load failed:', apiError);
+
+          if (apiError.response?.status === 404) {
+            const possibleMatch = localResumes.find(r =>
+              r.personalInfo?.email === 'sudipsherpa999@gmail.com' ||
+              r.personalInfo?.firstName === 'sudipp'
+            );
+
+            if (possibleMatch) {
+              console.log('🔍 Found match by content:', possibleMatch._id);
+              toast.success('Found locally saved version');
+              setCurrentResume(possibleMatch);
+              setLoading(false);
+              return possibleMatch;
+            }
+          }
+
+          throw apiError;
+        }
+      }
+
+      throw new Error('Resume not found');
+
     } catch (err) {
       console.error('❌ Load resume failed:', err);
-      if (mountedRef.current) {
-        setError(err.message || 'Failed to load resume');
-        toast.error('Failed to load resume');
-      }
-      const fallback = getEmptyResume(getUserId());
-      if (mountedRef.current) setCurrentResume(fallback);
-      return fallback;
-    } finally {
-      if (mountedRef.current) setLoading(false);
+      setError(err.message);
+      toast.error('Failed to load resume');
+      setLoading(false);
+      throw err;
     }
-  }, [resumes, getUserId]);
+  }, [resumes, offlineMode]);
 
-  // ────────────────────────────────────────────────
-  // CREATE NEW RESUME
-  // ────────────────────────────────────────────────
-  const createResume = useCallback(async (initialData = {}) => {
-    setIsSaving(true);
+  // ==================== SYNC SINGLE RESUME TO SERVER ====================
+  const syncSingleResumeToServer = useCallback(async (localResume) => {
+    if (!localResume || !localResume._id?.startsWith('local_') || offlineMode || syncInProgress) {
+      return null;
+    }
+
+    const attempts = syncAttemptsRef.current[localResume._id] || 0;
+    if (attempts > 3) {
+      console.warn('⚠️ Too many sync attempts for:', localResume._id);
+      return null;
+    }
+
+    console.log('🔄 Syncing local resume to server:', localResume._id);
 
     try {
-      const userId = getUserId();
-      const empty = getEmptyResume(userId);
+      const resumeToSync = { ...localResume };
+      delete resumeToSync._id;
+      delete resumeToSync.id;
+      delete resumeToSync.offline;
 
-      const newData = {
-        ...empty,
-        ...initialData,
-        title: initialData.title || `New Resume ${new Date().toLocaleDateString()}`,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-
-      console.log('➕ Creating new resume...');
-
-      // Try cloud first
-      let saved;
-      try {
-        saved = await apiService.resume.createResume(newData);
-        console.log('✅ Cloud create success:', saved._id);
-      } catch (cloudErr) {
-        console.warn('Cloud create failed — saving locally:', cloudErr.message);
-        const localId = `local_${Date.now()}`;
-        saved = { ...newData, _id: localId, id: localId, offline: true };
+      if (!resumeToSync.personalInfo) {
+        resumeToSync.personalInfo = {};
       }
 
-      if (!mountedRef.current) return saved;
+      const saved = await apiService.resume.createResume(resumeToSync);
+      console.log('✅ Synced to server, new ID:', saved._id);
 
-      // Update state
-      setResumes(prev => [saved, ...prev]);
-      setCurrentResume(saved);
-      setLastUpdated(new Date());
+      const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
+      const updatedLocal = localResumes.filter(r => r._id !== localResume._id);
+      localStorage.setItem('local_resumes', JSON.stringify(updatedLocal));
 
-      // Refresh stats
-      try {
-        const updatedStats = await apiService.dashboard.getDashboardStats();
-        if (mountedRef.current) setStats(updatedStats);
-      } catch { }
+      setResumes(prev => {
+        const withoutOld = prev.filter(r => r._id !== localResume._id);
+        return [saved, ...withoutOld];
+      });
 
-      toast.success('Resume created!');
+      if (currentResume?._id === localResume._id) {
+        setCurrentResume(saved);
+
+        toast.success((t) => (
+          <div className="flex flex-col gap-2">
+            <p className="font-medium">✨ Resume synced to server!</p>
+            <button
+              onClick={() => {
+                window.location.href = `/builder/edit/${saved._id}`;
+                toast.dismiss(t.id);
+              }}
+              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition"
+            >
+              Open Server Version
+            </button>
+          </div>
+        ), { duration: 10000 });
+      } else {
+        toast.success('Local resume synced to server');
+      }
+
+      delete syncAttemptsRef.current[localResume._id];
+
       return saved;
+
+    } catch (error) {
+      console.error('❌ Sync failed:', error);
+      syncAttemptsRef.current[localResume._id] = attempts + 1;
+
+      toast.error((t) => (
+        <div className="flex flex-col gap-2">
+          <p>Failed to sync to server</p>
+          <button
+            onClick={() => {
+              syncSingleResumeToServer(localResume);
+              toast.dismiss(t.id);
+            }}
+            className="px-3 py-1.5 bg-yellow-600 text-white rounded-lg text-sm hover:bg-yellow-700 transition"
+          >
+            Retry Sync
+          </button>
+        </div>
+      ), { duration: 8000 });
+
+      return null;
+    }
+  }, [offlineMode, syncInProgress, currentResume]);
+
+  // ==================== INITIALIZE ====================
+  useEffect(() => {
+    console.log('🚀 Initializing ResumeContext');
+    loadResumes(true);
+
+    return () => {
+      console.log('🧹 Cleaning up ResumeContext');
+      mountedRef.current = false;
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [loadResumes]);
+
+  // ==================== CREATE RESUME ====================
+  const createResume = useCallback(async (initialData = {}) => {
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      let newResume;
+      const empty = apiService.resume.getEmptyResume();
+
+      if (!offlineMode) {
+        try {
+          newResume = await apiService.resume.createResume(initialData);
+          console.log('✅ Created on server:', newResume._id);
+          toast.success('Resume created!');
+        } catch (apiError) {
+          console.log('⚠️ API create failed, using local:', apiError);
+
+          const localId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          newResume = {
+            ...empty,
+            ...initialData,
+            _id: localId,
+            id: localId,
+            offline: true,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            analysis: { atsScore: 0 }
+          };
+
+          const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
+          localStorage.setItem('local_resumes', JSON.stringify([newResume, ...localResumes]));
+          toast.success('Resume saved locally');
+        }
+      } else {
+        const localId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        newResume = {
+          ...empty,
+          ...initialData,
+          _id: localId,
+          id: localId,
+          offline: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          analysis: { atsScore: 0 }
+        };
+
+        const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
+        localStorage.setItem('local_resumes', JSON.stringify([newResume, ...localResumes]));
+        toast.success('Resume saved locally');
+      }
+
+      setResumes(prev => [newResume, ...prev]);
+      setCurrentResume(newResume);
+
+      return newResume;
     } catch (err) {
-      console.error('❌ Create resume failed:', err);
+      console.error('❌ Create failed:', err);
+      setError(err.message);
       toast.error('Failed to create resume');
       return null;
     } finally {
-      if (mountedRef.current) setIsSaving(false);
+      setIsSaving(false);
     }
-  }, [getUserId]);
+  }, [offlineMode]);
 
-  // ────────────────────────────────────────────────
-  // UPDATE RESUME (debounced)
-  // ────────────────────────────────────────────────
-  const updateResume = useCallback(async (id, resumeData) => {
-    if (!id || !resumeData) {
-      toast.error('Missing resume ID or data');
-      return null;
+  // ==================== FIXED SAVE RESUME ====================
+  const saveResume = useCallback(async (resumeData) => {
+    if (!resumeData) {
+      toast.error('No resume data to save');
+      throw new Error('No resume data');
     }
 
-    // Handle local resumes
-    if (id.startsWith('local_')) {
-      const updated = { ...resumeData, updatedAt: new Date().toISOString() };
-      setResumes(prev => prev.map(r => (r._id === id ? updated : r)));
-      if (currentResume?._id === id) setCurrentResume(updated);
-      toast.success('Saved locally (offline)');
-      return updated;
-    }
+    console.log('💾 saveResume called with:', {
+      id: resumeData._id,
+      summary: resumeData.summary,
+      isLocal: resumeData._id?.startsWith('local_')
+    });
 
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    setIsSaving(true);
+    setError(null);
 
-    return new Promise(resolve => {
-      saveTimeoutRef.current = setTimeout(async () => {
-        setIsSaving(true);
+    try {
+      let savedResume;
+      const isLocal = resumeData._id?.startsWith('local_');
+      const updatedData = {
+        ...resumeData,
+        updatedAt: new Date().toISOString()
+      };
 
+      // Validate required fields before sending
+      if (!updatedData.personalInfo) {
+        updatedData.personalInfo = {};
+      }
+      if (!updatedData.analysis) {
+        updatedData.analysis = { atsScore: 0 };
+      }
+
+      if (!offlineMode) {
         try {
-          const updatedData = {
-            ...resumeData,
-            updatedAt: new Date().toISOString(),
-            version: (resumeData.version || 0) + 1
-          };
+          savedResume = await apiService.resume.updateResume(resumeData._id, updatedData);
+          console.log('✅ Saved on server:', savedResume._id);
+          toast.success('Resume saved!');
+        } catch (apiError) {
+          console.log('⚠️ API save failed, falling back to local:', apiError);
 
-          console.log('✏️ Updating resume:', id);
-
-          const saved = await apiService.resume.updateResume(id, updatedData);
-
-          if (!mountedRef.current) {
-            resolve(saved);
-            return;
+          // Show validation errors if present
+          if (apiError.response?.data?.details) {
+            const errors = apiError.response.data.details;
+            errors.forEach(err => {
+              toast.error(err.message || 'Validation error');
+            });
+          } else {
+            // Fixed: changed toast.warning to toast()
+            toast('Saved locally (server unavailable)', { icon: '📦' });
           }
 
-          // Update state
-          setResumes(prev => prev.map(r => (r._id === id ? saved : r)));
-          if (currentResume?._id === id) setCurrentResume(saved);
-
-          setLastUpdated(new Date());
-          setCloudStatus({ isConnected: true, lastSynced: new Date(), mode: 'online' });
-
-          toast.success('Resume saved!');
-          resolve(saved);
-        } catch (err) {
-          console.error('❌ Update failed:', err);
-          toast.error('Save failed — stored locally');
-
-          const localUpdate = {
-            ...resumeData,
-            _id: id,
-            updatedAt: new Date().toISOString(),
+          const localId = isLocal ? resumeData._id : `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          savedResume = {
+            ...updatedData,
+            _id: localId,
+            id: localId,
             offline: true
           };
-
-          setResumes(prev => prev.map(r => (r._id === id ? localUpdate : r)));
-          if (currentResume?._id === id) setCurrentResume(localUpdate);
-          setCloudStatus(prev => ({ ...prev, mode: 'offline' }));
-
-          resolve(localUpdate);
-        } finally {
-          if (mountedRef.current) setIsSaving(false);
+          const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
+          const index = localResumes.findIndex(r => r._id === localId);
+          if (index >= 0) {
+            localResumes[index] = savedResume;
+          } else {
+            localResumes.push(savedResume);
+          }
+          localStorage.setItem('local_resumes', JSON.stringify(localResumes));
         }
-      }, 800); // debounce 800ms
-    });
-  }, [currentResume]);
+      } else {
+        const localId = isLocal ? resumeData._id : `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        savedResume = {
+          ...updatedData,
+          _id: localId,
+          id: localId,
+          offline: true
+        };
+        const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
+        const index = localResumes.findIndex(r => r._id === localId);
+        if (index >= 0) {
+          localResumes[index] = savedResume;
+        } else {
+          localResumes.push(savedResume);
+        }
+        localStorage.setItem('local_resumes', JSON.stringify(localResumes));
+        toast.success('Saved locally');
+      }
 
-  // ────────────────────────────────────────────────
-  // SAVE (create or update)
-  // ────────────────────────────────────────────────
-  const saveResume = useCallback(async (resumeData) => {
-    if (!resumeData || Object.keys(resumeData).length === 0) {
-      console.error('saveResume called with empty/invalid data');
-      toast.error('No resume data to save');
-      return null;
+      setResumes(prev => {
+        const withoutOld = prev.filter(r => r._id !== resumeData._id);
+        return [savedResume, ...withoutOld];
+      });
+      setCurrentResume(savedResume);
+
+      return savedResume;
+    } catch (err) {
+      console.error('❌ Save failed:', err);
+      setError(err.message);
+      toast.error('Failed to save resume');
+      throw err;
+    } finally {
+      setIsSaving(false);
     }
+  }, [offlineMode]);
 
-    const id = resumeData._id || resumeData.id;
-    const isNew = !id || id === 'new' || id.startsWith('local_');
-
-    console.log(`Saving: ${isNew ? 'CREATE' : 'UPDATE'}`, {
-      id: id || 'new',
-      title: resumeData.title || '(no title)'
-    });
-
-    return isNew ? createResume(resumeData) : updateResume(id, resumeData);
-  }, [createResume, updateResume]);
-
-  // ────────────────────────────────────────────────
-  // UPDATE CURRENT RESUME (optimistic + auto-save)
-  // ────────────────────────────────────────────────
+  // ==================== UPDATE CURRENT RESUME DATA ====================
   const updateCurrentResumeData = useCallback((updates) => {
+    console.log('🔵 ResumeContext - updateCurrentResumeData called with:', updates);
+
     setCurrentResume(prev => {
+      console.log('🔵 ResumeContext - Previous state:', prev?.summary);
+
       if (!prev) {
-        console.warn('No current resume to update');
-        return null;
+        const empty = apiService.resume.getEmptyResume();
+        const localId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        const updated = {
+          ...empty,
+          ...updates,
+          personalInfo: updates.personalInfo ? { ...empty.personalInfo, ...updates.personalInfo } : empty.personalInfo,
+          summary: updates.summary !== undefined ? updates.summary : empty.summary,
+          experience: updates.experience ? (Array.isArray(updates.experience) ? updates.experience : updates.experience.items || empty.experience) : empty.experience,
+          skills: updates.skills ? (Array.isArray(updates.skills) ? updates.skills : updates.skills.items || empty.skills) : empty.skills,
+          education: updates.education ? (Array.isArray(updates.education) ? updates.education : updates.education.items || empty.education) : empty.education,
+          projects: updates.projects ? (Array.isArray(updates.projects) ? updates.projects : updates.projects.items || empty.projects) : empty.projects,
+          certifications: updates.certifications ? (Array.isArray(updates.certifications) ? updates.certifications : updates.certifications.items || empty.certifications) : empty.certifications,
+          languages: updates.languages ? (Array.isArray(updates.languages) ? updates.languages : updates.languages.items || empty.languages) : empty.languages,
+          _id: localId,
+          id: localId,
+          updatedAt: new Date().toISOString()
+        };
+
+        console.log('🔵 ResumeContext - Created new resume with summary:', updated.summary);
+
+        const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
+        localStorage.setItem('local_resumes', JSON.stringify([updated, ...localResumes]));
+
+        return updated;
+      }
+
+      let newSummary = prev.summary;
+      if (updates.summary !== undefined) {
+        if (typeof updates.summary === 'string') {
+          newSummary = updates.summary;
+          console.log('🔵 ResumeContext - Updating summary to:', newSummary);
+        } else if (typeof updates.summary === 'object' && updates.summary !== null) {
+          if (typeof updates.summary.summary === 'string') {
+            newSummary = updates.summary.summary;
+            console.log('🔵 ResumeContext - Updating summary from wrapped object to:', newSummary);
+          } else {
+            console.warn('🔴 ResumeContext - Invalid summary value received (object without summary property):', updates.summary);
+          }
+        } else {
+          console.warn('🔴 ResumeContext - Invalid summary value received (not a string):', updates.summary);
+        }
       }
 
       const updated = {
         ...prev,
         ...updates,
+        summary: newSummary,
+        personalInfo: updates.personalInfo ? { ...prev.personalInfo, ...updates.personalInfo } : prev.personalInfo,
+        experience: updates.experience ? (Array.isArray(updates.experience) ? updates.experience : updates.experience.items || prev.experience) : prev.experience,
+        skills: updates.skills ? (Array.isArray(updates.skills) ? updates.skills : updates.skills.items || prev.skills) : prev.skills,
+        education: updates.education ? (Array.isArray(updates.education) ? updates.education : updates.education.items || prev.education) : prev.education,
+        projects: updates.projects ? (Array.isArray(updates.projects) ? updates.projects : updates.projects.items || prev.projects) : prev.projects,
+        certifications: updates.certifications ? (Array.isArray(updates.certifications) ? updates.certifications : updates.certifications.items || prev.certifications) : prev.certifications,
+        languages: updates.languages ? (Array.isArray(updates.languages) ? updates.languages : updates.languages.items || prev.languages) : prev.languages,
         updatedAt: new Date().toISOString()
       };
 
-      // Auto-save after update (debounced via updateResume)
-      if (prev._id && prev._id !== 'new') {
-        updateResume(prev._id, updated).catch(console.error);
+      console.log('🔵 ResumeContext - Updated resume, new summary:', updated.summary);
+
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
       }
+
+      saveTimeoutRef.current = setTimeout(async () => {
+        try {
+          console.log('⏰ Auto-saving resume with summary:', updated.summary);
+          await saveResume(updated);
+        } catch (error) {
+          console.error('Auto-save failed:', error);
+        }
+      }, 2000);
 
       return updated;
     });
-  }, [updateResume]);
+  }, [saveResume]);
 
-  // ────────────────────────────────────────────────
-  // DELETE RESUME
-  // ────────────────────────────────────────────────
+  // ==================== DELETE RESUME ====================
   const deleteResume = useCallback(async (id) => {
-    if (!id) return toast.error('No resume selected');
-
-    setLoading(true);
+    if (!id) {
+      toast.error('No resume selected');
+      return;
+    }
 
     try {
-      console.log('🗑️ Deleting:', id);
-
-      if (id.startsWith('local_')) {
-        setResumes(prev => prev.filter(r => r._id !== id));
-        if (currentResume?._id === id) setCurrentResume(null);
-        toast.success('Local resume deleted');
-        return;
+      setResumes(prev => prev.filter(r => r._id !== id && r.id !== id));
+      if (currentResume?._id === id || currentResume?.id === id) {
+        setCurrentResume(null);
       }
 
-      await apiService.resume.deleteResume(id);
+      const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
+      localStorage.setItem('local_resumes', JSON.stringify(
+        localResumes.filter(r => r._id !== id && r.id !== id)
+      ));
 
-      setResumes(prev => prev.filter(r => r._id !== id));
-      if (currentResume?._id === id) setCurrentResume(null);
+      if (!id.startsWith('local_') && !offlineMode) {
+        try {
+          await apiService.resume.deleteResume(id);
+          toast.success('Resume deleted');
+        } catch (apiError) {
+          console.log('⚠️ API delete failed:', apiError);
+          toast.success('Resume removed locally');
+        }
+      } else {
+        toast.success('Resume deleted');
+      }
 
       await loadResumes(true);
-      toast.success('Resume deleted');
+
     } catch (err) {
       console.error('❌ Delete failed:', err);
-      toast.error('Failed to delete resume');
-    } finally {
-      if (mountedRef.current) setLoading(false);
+      setError(err.message);
+      toast.error('Failed to delete');
     }
-  }, [currentResume, loadResumes]);
+  }, [currentResume, loadResumes, offlineMode]);
 
-  // ────────────────────────────────────────────────
-  // OTHER HELPERS (same style)
-  // ────────────────────────────────────────────────
+  // ==================== UTILITIES ====================
+  const refreshResumes = useCallback(async () => {
+    await loadResumes(true);
+    toast.success('Resumes refreshed');
+  }, [loadResumes]);
+
   const clearCurrentResume = useCallback(() => {
     setCurrentResume(null);
   }, []);
@@ -455,94 +687,20 @@ export const ResumeProvider = ({ children }) => {
     return resumes.find(r => r._id === id || r.id === id);
   }, [resumes]);
 
-  const refreshResumes = useCallback(async () => {
-    console.log('🔄 Manual refresh requested');
-    await loadResumes(true);
-    toast.success('Resumes refreshed');
-  }, [loadResumes]);
-
-  const syncOfflineResumes = useCallback(async () => {
-    if (!apiService.auth.isAuthenticated()) {
-      toast.error('Login required to sync');
-      return;
-    }
-
-    const offline = resumes.filter(r => r.offline);
-    if (offline.length === 0) return toast.info('Nothing to sync');
-
-    console.log(`🔄 Syncing ${offline.length} offline resume(s)...`);
-
-    let synced = 0;
-    for (const res of offline) {
-      try {
-        const { offline: _, ...clean } = res;
-        if (res._id.startsWith('local_')) {
-          const created = await apiService.resume.createResume(clean);
-          synced++;
-          setResumes(prev => prev.map(r => r._id === res._id ? created : r));
-        } else {
-          await apiService.resume.updateResume(res._id, clean);
-          synced++;
-        }
-      } catch (err) {
-        console.error('Sync failed for:', res._id, err);
-      }
-    }
-
-    if (synced > 0) {
-      toast.success(`Synced ${synced} resume(s)`);
-      await loadResumes(true);
-      setCloudStatus({ isConnected: true, lastSynced: new Date(), mode: 'online' });
-    }
-  }, [resumes, loadResumes]);
-
-  // ────────────────────────────────────────────────
-  // MEMOIZED VALUES
-  // ────────────────────────────────────────────────
+  // ==================== VALUE ====================
   const value = useMemo(() => ({
     resumes,
     currentResume,
-    stats,
     loading,
     error,
-    lastUpdated,
-    cloudStatus,
     isSaving,
-
-    starredResumes: resumes.filter(r => r.isStarred),
-    primaryResume: resumes.find(r => r.isPrimary),
-    completedResumes: resumes.filter(r => r.status === 'completed'),
-    draftResumes: resumes.filter(r => r.status === 'draft'),
-    inProgressResumes: resumes.filter(r => r.status === 'in-progress'),
+    syncInProgress,
+    offlineMode,
     hasResumes: resumes.length > 0,
     hasCurrentResume: !!currentResume,
-    isOnline: cloudStatus.isConnected,
-
-    createResume,
-    saveResume,
-    updateResume,
-    deleteResume,
-    loadResume,
-    loadResumes,
-    refreshResumes,
-    updateCurrentResumeData,
-    clearCurrentResume,
-    getResumeById,
-    syncOfflineResumes,
-
-    getEmptyResume: () => getEmptyResume(getUserId())
-  }), [
-    resumes,
-    currentResume,
-    stats,
-    loading,
-    error,
     lastUpdated,
-    cloudStatus,
-    isSaving,
     createResume,
     saveResume,
-    updateResume,
     deleteResume,
     loadResume,
     loadResumes,
@@ -550,8 +708,14 @@ export const ResumeProvider = ({ children }) => {
     updateCurrentResumeData,
     clearCurrentResume,
     getResumeById,
-    syncOfflineResumes,
-    getUserId
+    getEmptyResume: apiService.resume.getEmptyResume,
+    syncAllLocalResumes,
+    syncSingleResumeToServer
+  }), [
+    resumes, currentResume, loading, error, isSaving, syncInProgress, offlineMode, lastUpdated,
+    createResume, saveResume, deleteResume, loadResume, loadResumes,
+    refreshResumes, updateCurrentResumeData, clearCurrentResume, getResumeById,
+    syncAllLocalResumes, syncSingleResumeToServer
   ]);
 
   return (

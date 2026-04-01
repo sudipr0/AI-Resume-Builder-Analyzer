@@ -374,4 +374,4 @@ const SectionTemplate = ({
   );
 };
 
-export default SectionTemplate;
+export default React.memo(SectionTemplate);

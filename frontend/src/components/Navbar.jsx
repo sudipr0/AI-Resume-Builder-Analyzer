@@ -1,3 +1,4 @@
+// src/components/Navbar.jsx - UPDATED (only handleNewResume function changed to navigate to Builder Home)
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -15,11 +16,13 @@ import {
   FaHome,
   FaPlus,
   FaSearch,
-  FaPalette
+  FaPalette,
+  FaHistory
 } from 'react-icons/fa';
 import { MdDashboard } from 'react-icons/md';
 import { useAuth } from '../context/AuthContext';
 import { useDashboard } from '../context/DashboardContext';
+import apiService from '../services/api';
 
 const Navbar = () => {
   const { isAuthenticated, user, logout } = useAuth();
@@ -35,7 +38,6 @@ const Navbar = () => {
 
   const dashboardNavItems = [
     { path: '/dashboard', icon: <FaHome />, label: 'Dashboard', badge: null },
-    { path: '/builder', icon: <FaPlus />, label: 'New Resume', badge: 'New' },
     { path: '/analyzer', icon: <FaSearch />, label: 'Analyzer', badge: null },
     { path: '/builder/templates', icon: <FaPalette />, label: 'Templates', badge: '12+' },
   ];
@@ -53,54 +55,60 @@ const Navbar = () => {
     }
   };
 
-  // ✅ UPDATED: Handle "New Resume" button click
+  // ✅ UPDATED: Navigate to Builder Home page instead of directly to editor
   const handleNewResume = async (e) => {
-    e?.preventDefault();
+    e.preventDefault();
+    e.stopPropagation();
 
-    // Check if dashboard is still loading
-    if (dashboardLoading) {
-      toast.error('Please wait while we load your data...');
-      return;
-    }
+    console.log('🖱️ New Resume clicked - Current state:', {
+      isAuthenticated,
+      isCreatingResume,
+      dashboardLoading,
+      hasUser: !!user,
+      userId: user?._id || user?.id
+    });
 
-    // Check if user is authenticated
-    if (!isAuthenticated || !user) {
+    if (!isAuthenticated) {
+      console.log('❌ Not authenticated, redirecting to login');
       toast.error('Please login to create a resume');
       navigate('/login');
       return;
     }
 
-    try {
-      setIsCreatingResume(true);
+    // Check if dashboard is still loading
+    if (dashboardLoading) {
+      console.log('⏳ Dashboard still loading, waiting...');
+      toast.loading('Dashboard initializing...', { id: 'dashboard-load' });
 
-      // Navigate to BuilderHome page first (builder landing page)
-      navigate('/builder', {
-        state: {
-          action: 'create_new',
-          timestamp: Date.now(),
-          userData: {
-            name: user.name,
-            email: user.email
-          }
-        }
-      });
+      // Wait for dashboard to load (max 3 seconds)
+      let attempts = 0;
+      while (dashboardLoading && attempts < 10) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        attempts++;
+      }
+      toast.dismiss('dashboard-load');
 
-      // Show loading toast
-      toast.loading('Preparing resume builder...', { id: 'resume-creation' });
-
-    } catch (error) {
-      console.error('❌ New resume navigation error:', error);
-      toast.error('Failed to start resume creation');
-    } finally {
-      setIsCreatingResume(false);
+      if (dashboardLoading) {
+        console.log('⚠️ Dashboard still loading after wait');
+        toast.error('Please wait for dashboard to load');
+        return;
+      }
     }
+
+    // ✅ Simply navigate to Builder Home page
+    // The actual resume creation will happen when user chooses an option
+    console.log('🚀 Navigating to Builder Home page');
+    navigate('/builder', {
+      state: {
+        fromNavbar: true,
+        action: 'new'
+      }
+    });
   };
 
-  // ✅ UPDATED: Handle "Get Started" button
   const handleGetStarted = () => {
     if (isAuthenticated) {
-      // If authenticated, go to builder home
-      navigate('/builder');
+      handleNewResume();
     } else {
       navigate('/register');
     }
@@ -169,12 +177,18 @@ const Navbar = () => {
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
+    setIsUserMenuOpen(false);
   }, [location.pathname]);
 
   // Get user's resume count
   const getUserResumeCount = () => {
     return resumes?.length || user?.resumeCount || 0;
   };
+
+  // Add this useEffect to monitor dashboard loading state
+  useEffect(() => {
+    console.log('📊 Dashboard loading state:', dashboardLoading);
+  }, [dashboardLoading]);
 
   return (
     <>
@@ -195,14 +209,14 @@ const Navbar = () => {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 1rem 1.5rem;
+            padding: 0.75rem 1.5rem;
             max-width: 100%;
             margin: 0 auto;
           }
 
           @media (max-width: 768px) {
             .navbar-container {
-              padding: 0.75rem 1rem;
+              padding: 0.5rem 1rem;
             }
           }
 
@@ -225,8 +239,8 @@ const Navbar = () => {
 
           .animated-logo {
             position: relative;
-            width: 42px;
-            height: 42px;
+            width: 40px;
+            height: 40px;
           }
 
           @media (max-width: 768px) {
@@ -286,7 +300,7 @@ const Navbar = () => {
           .desktop-nav {
             display: flex;
             align-items: center;
-            gap: 1rem;
+            gap: 0.5rem;
           }
 
           @media (max-width: 1024px) {
@@ -298,7 +312,7 @@ const Navbar = () => {
           .nav-links {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: 0.25rem;
           }
 
           .nav-link {
@@ -313,6 +327,9 @@ const Navbar = () => {
             text-decoration: none;
             position: relative;
             font-size: 0.875rem;
+            background: none;
+            border: none;
+            cursor: pointer;
           }
 
           .nav-link:hover {
@@ -329,10 +346,43 @@ const Navbar = () => {
             border: 1px solid #e5e7eb;
           }
 
-          .nav-link.disabled {
+          /* ✅ FIXED: New Resume Button - High Contrast & Clickable */
+          .new-resume-btn {
+            background: linear-gradient(135deg, #7c3aed, #c084fc) !important;
+            color: white !important;
+            font-weight: 700 !important;
+            padding: 0.6rem 1.2rem !important;
+            border-radius: 9999px !important;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3) !important;
+            transition: all 0.2s ease !important;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border: none;
+            cursor: pointer;
+            font-size: 0.875rem;
+            margin-left: 0.25rem;
+            margin-right: 0.25rem;
+            position: relative;
+            z-index: 100;
+            pointer-events: auto;
+          }
+
+          .new-resume-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(124, 58, 237, 0.5) !important;
+          }
+
+          .new-resume-btn:active {
+            transform: translateY(0);
+          }
+
+          .new-resume-btn.disabled {
             opacity: 0.6;
-            cursor: not-allowed;
-            pointer-events: none;
+            cursor: not-allowed !important;
+            transform: none !important;
+            box-shadow: none !important;
+            pointer-events: auto;
           }
 
           .nav-badge {
@@ -345,6 +395,16 @@ const Navbar = () => {
             padding: 0.1rem 0.4rem;
             border-radius: 10px;
             font-weight: 600;
+          }
+
+          .nav-badge.small {
+            position: static;
+            margin-left: 0.5rem;
+            background: #e5e7eb;
+            color: #4b5563;
+            font-size: 0.7rem;
+            padding: 0.15rem 0.4rem;
+            border-radius: 12px;
           }
 
           /* User Profile */
@@ -383,22 +443,6 @@ const Navbar = () => {
             font-size: 0.8rem;
           }
 
-          .avatar-badge {
-            position: absolute;
-            bottom: -2px;
-            right: -2px;
-            width: 14px;
-            height: 14px;
-            background: white;
-            border: 2px solid white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #3b82f6;
-            font-size: 0.45rem;
-          }
-
           .user-info {
             display: flex;
             flex-direction: column;
@@ -431,9 +475,9 @@ const Navbar = () => {
             position: absolute;
             right: 0;
             top: calc(100% + 0.5rem);
-            width: 260px;
+            width: 240px;
             background: white;
-            border-radius: 10px;
+            border-radius: 12px;
             border: 1px solid #e5e7eb;
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
             overflow: hidden;
@@ -442,22 +486,8 @@ const Navbar = () => {
 
           .dropdown-header {
             padding: 1rem;
-            background: linear-gradient(135deg, #eff6ff, #f8fafc);
+            background: linear-gradient(135deg, #f9fafb, #f3f4f6);
             border-bottom: 1px solid #e5e7eb;
-          }
-
-          .dropdown-avatar {
-            width: 42px;
-            height: 42px;
-            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: 600;
-            font-size: 1.1rem;
-            margin-bottom: 0.5rem;
           }
 
           .dropdown-user-info h4 {
@@ -474,29 +504,27 @@ const Navbar = () => {
           }
 
           .dropdown-links {
-            padding: 0.5rem;
+            padding: 0.5rem 0;
           }
 
           .dropdown-link {
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            width: 100%;
-            padding: 0.6rem 0.75rem;
-            border-radius: 8px;
+            padding: 0.6rem 1rem;
             color: #4b5563;
             text-decoration: none;
             background: none;
             border: none;
+            width: 100%;
+            text-align: left;
+            font-size: 0.85rem;
             cursor: pointer;
-            font-size: 0.8rem;
-            transition: all 0.2s;
-            position: relative;
+            transition: background-color 0.2s;
           }
 
           .dropdown-link:hover {
             background-color: #f3f4f6;
-            color: #1f2937;
           }
 
           .dropdown-link.logout {
@@ -509,18 +537,18 @@ const Navbar = () => {
 
           .dropdown-badge {
             margin-left: auto;
-            background: #f3f4f6;
-            color: #6b7280;
-            font-size: 0.65rem;
+            background: #e5e7eb;
+            color: #4b5563;
+            font-size: 0.7rem;
             padding: 0.15rem 0.4rem;
-            border-radius: 8px;
+            border-radius: 12px;
             font-weight: 600;
           }
 
           .dropdown-divider {
             height: 1px;
             background-color: #e5e7eb;
-            margin: 0.4rem 0.75rem;
+            margin: 0.25rem 0;
           }
 
           /* Get Started Button */
@@ -542,12 +570,6 @@ const Navbar = () => {
           .get-started-btn:hover {
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-          }
-
-          .get-started-btn.disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
           }
 
           /* Mobile Menu Toggle */
@@ -599,7 +621,6 @@ const Navbar = () => {
 
           .mobile-menu-content {
             padding: 1rem;
-            height: 100%;
           }
 
           .mobile-user-info {
@@ -656,7 +677,9 @@ const Navbar = () => {
             border: none;
             font-size: 0.85rem;
             transition: all 0.2s;
-            position: relative;
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
           }
 
           .mobile-nav-link:hover {
@@ -669,20 +692,31 @@ const Navbar = () => {
             cursor: not-allowed;
           }
 
+          .mobile-nav-link.create-resume {
+            background: linear-gradient(135deg, #7c3aed, #c084fc);
+            color: white;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+          }
+
+          .mobile-nav-link.create-resume:hover {
+            background: linear-gradient(135deg, #6d28d9, #a855f7);
+          }
+
           .mobile-nav-badge {
             margin-left: auto;
-            background: linear-gradient(135deg, #f59e0b, #f97316);
-            color: white;
-            font-size: 0.65rem;
+            background: #e5e7eb;
+            color: #4b5563;
+            font-size: 0.7rem;
             padding: 0.15rem 0.4rem;
-            border-radius: 8px;
+            border-radius: 12px;
             font-weight: 600;
           }
 
           .mobile-nav-divider {
             height: 1px;
             background-color: #e5e7eb;
-            margin: 0.4rem 0;
+            margin: 0.75rem 0;
           }
 
           .mobile-get-started-btn {
@@ -703,15 +737,13 @@ const Navbar = () => {
             font-size: 0.85rem;
           }
 
-          .mobile-get-started-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+          .animate-spin {
+            animation: spin 1s linear infinite;
           }
 
-          .mobile-get-started-btn.disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
           }
         `}
       </style>
@@ -735,59 +767,47 @@ const Navbar = () => {
             </div>
           </motion.button>
 
+          {/* Desktop Navigation */}
           <div className="desktop-nav">
             {isAuthenticated ? (
               <>
-                {/* Show dashboard navigation when authenticated */}
-                {!location.pathname.startsWith('/builder') && (
-                  <div className="nav-links">
-                    {dashboardNavItems.map((item) => {
-                      // Special handling for "New Resume" button
-                      if (item.label === 'New Resume') {
-                        return (
-                          <button
-                            key={item.path}
-                            onClick={handleNewResume}
-                            className={`nav-link ${location.pathname === item.path ? 'active' : ''} ${isCreatingResume || dashboardLoading ? 'disabled' : ''}`}
-                            disabled={isCreatingResume || dashboardLoading}
-                          >
-                            {isCreatingResume ? (
-                              <>
-                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                                <span>Creating...</span>
-                              </>
-                            ) : (
-                              <>
-                                {item.icon}
-                                <span>{item.label}</span>
-                              </>
-                            )}
-                            {item.badge && !isCreatingResume && (
-                              <span className="nav-badge">{item.badge}</span>
-                            )}
-                          </button>
-                        );
-                      }
+                <div className="nav-links">
+                  {/* Regular navigation items */}
+                  {dashboardNavItems.map((item) => (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      className={`nav-link ${location.pathname === item.path ? 'active' : ''}`}
+                    >
+                      {item.icon}
+                      <span>{item.label}</span>
+                      {item.badge && (
+                        <span className="nav-badge">{item.badge}</span>
+                      )}
+                    </Link>
+                  ))}
+                </div>
 
-                      // Regular navigation items
-                      return (
-                        <Link
-                          key={item.path}
-                          to={item.path}
-                          className={`nav-link ${location.pathname === item.path ? 'active' : ''}`}
-                        >
-                          {item.icon}
-                          <span>{item.label}</span>
-                          {item.badge && (
-                            <span className="nav-badge">{item.badge}</span>
-                          )}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
+                {/* ✅ FIXED: New Resume Button - Navigates to Builder Home */}
+                <button
+                  onClick={handleNewResume}
+                  className={`new-resume-btn ${isCreatingResume || dashboardLoading ? 'disabled' : ''}`}
+                  disabled={isCreatingResume || dashboardLoading}
+                >
+                  {isCreatingResume ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Creating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FaPlus />
+                      <span>New Resume</span>
+                    </>
+                  )}
+                </button>
 
-                {/* User Profile Menu - Only shown when authenticated */}
+                {/* User Profile Menu - WITH SIMPLE ANALYSIS HISTORY BUTTON */}
                 <div className="user-profile" ref={userMenuRef}>
                   <motion.button
                     onClick={toggleUserMenu}
@@ -798,9 +818,6 @@ const Navbar = () => {
                   >
                     <div className="user-avatar">
                       <span>{getUserInitials()}</span>
-                      <div className="avatar-badge">
-                        <FaFileAlt />
-                      </div>
                     </div>
                     <div className="user-info">
                       <span className="user-name">Hi, {getUserFirstName()}!</span>
@@ -817,15 +834,15 @@ const Navbar = () => {
                         exit={{ opacity: 0, y: -10, scale: 0.95 }}
                         className="user-dropdown"
                       >
+                        {/* User Info */}
                         <div className="dropdown-header">
-                          <div className="dropdown-avatar">
-                            <span>{getUserInitials()}</span>
-                          </div>
                           <div className="dropdown-user-info">
                             <h4>{user?.name || getUserFirstName()}</h4>
                             <p>{user?.email || 'user@example.com'}</p>
                           </div>
                         </div>
+
+                        {/* Navigation Links */}
                         <div className="dropdown-links">
                           <Link
                             to="/dashboard"
@@ -855,6 +872,14 @@ const Navbar = () => {
                             </span>
                           </Link>
                           <Link
+                            to="/analyzer/history"
+                            className="dropdown-link"
+                            onClick={() => setIsUserMenuOpen(false)}
+                          >
+                            <FaHistory />
+                            <span>Analysis History</span>
+                          </Link>
+                          <Link
                             to="/settings"
                             className="dropdown-link"
                             onClick={() => setIsUserMenuOpen(false)}
@@ -862,15 +887,18 @@ const Navbar = () => {
                             <FaCog />
                             <span>Settings</span>
                           </Link>
-                          <div className="dropdown-divider" />
-                          <button
-                            onClick={handleLogout}
-                            className="dropdown-link logout"
-                          >
-                            <FaSignOutAlt />
-                            <span>Sign Out</span>
-                          </button>
                         </div>
+
+                        <div className="dropdown-divider" />
+
+                        {/* Logout */}
+                        <button
+                          onClick={handleLogout}
+                          className="dropdown-link logout"
+                        >
+                          <FaSignOutAlt />
+                          <span>Sign Out</span>
+                        </button>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -878,7 +906,6 @@ const Navbar = () => {
               </>
             ) : (
               <>
-                {/* PUBLIC NAVIGATION - Only shown when NOT authenticated */}
                 <div className="nav-links">
                   {publicNavItems.map((item) => (
                     <Link
@@ -911,6 +938,7 @@ const Navbar = () => {
             )}
           </div>
 
+          {/* Mobile Menu Toggle */}
           <motion.button
             onClick={toggleMobileMenu}
             className="mobile-menu-toggle"
@@ -921,21 +949,24 @@ const Navbar = () => {
           </motion.button>
         </div>
 
+        {/* Mobile Menu Overlay */}
         <AnimatePresence>
           {isMobileMenuOpen && (
             <motion.div
-              ref={mobileMenuRef}
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               className="mobile-menu-overlay"
-              onClick={(e) => e.stopPropagation()}
+              onClick={() => setIsMobileMenuOpen(false)}
             >
-              <div className="mobile-menu">
+              <div
+                className="mobile-menu"
+                ref={mobileMenuRef}
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className="mobile-menu-content">
                   {isAuthenticated ? (
                     <>
-                      {/* Mobile menu for authenticated users */}
                       <div className="mobile-user-info">
                         <div className="mobile-user-avatar">
                           <span>{getUserInitials()}</span>
@@ -947,60 +978,47 @@ const Navbar = () => {
                       </div>
 
                       <div className="mobile-nav-links">
-                        {/* Dashboard navigation in mobile */}
-                        {dashboardNavItems.map((item) => {
-                          if (item.label === 'New Resume') {
-                            return (
-                              <button
-                                key={item.path}
-                                onClick={handleNewResume}
-                                className={`mobile-nav-link ${isCreatingResume || dashboardLoading ? 'disabled' : ''}`}
-                                disabled={isCreatingResume || dashboardLoading}
-                              >
-                                {isCreatingResume ? (
-                                  <>
-                                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin mr-2"></div>
-                                    <span>Creating Resume...</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    {item.icon}
-                                    <span>{item.label}</span>
-                                  </>
-                                )}
-                                {item.badge && !isCreatingResume && (
-                                  <span className="mobile-nav-badge">{item.badge}</span>
-                                )}
-                              </button>
-                            );
-                          }
+                        {/* Mobile New Resume Button */}
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleNewResume(e);
+                            setIsMobileMenuOpen(false);
+                          }}
+                          className="mobile-nav-link create-resume"
+                          disabled={isCreatingResume}
+                        >
+                          {isCreatingResume ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                              <span>Creating...</span>
+                            </>
+                          ) : (
+                            <>
+                              <FaPlus />
+                              <span>Create New Resume</span>
+                            </>
+                          )}
+                        </button>
 
-                          return (
-                            <Link
-                              key={item.path}
-                              to={item.path}
-                              className="mobile-nav-link"
-                              onClick={() => setIsMobileMenuOpen(false)}
-                            >
-                              {item.icon}
-                              <span>{item.label}</span>
-                              {item.badge && (
-                                <span className="mobile-nav-badge">{item.badge}</span>
-                              )}
-                            </Link>
-                          );
-                        })}
+                        {dashboardNavItems.map((item) => (
+                          <Link
+                            key={item.path}
+                            to={item.path}
+                            className="mobile-nav-link"
+                            onClick={() => setIsMobileMenuOpen(false)}
+                          >
+                            {item.icon}
+                            <span>{item.label}</span>
+                            {item.badge && (
+                              <span className="mobile-nav-badge">{item.badge}</span>
+                            )}
+                          </Link>
+                        ))}
 
                         <div className="mobile-nav-divider" />
 
-                        <Link
-                          to="/profile"
-                          className="mobile-nav-link"
-                          onClick={() => setIsMobileMenuOpen(false)}
-                        >
-                          <FaUser />
-                          <span>My Profile</span>
-                        </Link>
                         <Link
                           to="/resumes"
                           className="mobile-nav-link"
@@ -1008,10 +1026,18 @@ const Navbar = () => {
                         >
                           <FaFileAlt />
                           <span>My Resumes</span>
-                          <span className="mobile-nav-badge">
-                            {getUserResumeCount()}
-                          </span>
+                          <span className="mobile-nav-badge">{getUserResumeCount()}</span>
                         </Link>
+
+                        <Link
+                          to="/analyzer/history"
+                          className="mobile-nav-link"
+                          onClick={() => setIsMobileMenuOpen(false)}
+                        >
+                          <FaHistory />
+                          <span>Analysis History</span>
+                        </Link>
+
                         <Link
                           to="/settings"
                           className="mobile-nav-link"
@@ -1020,12 +1046,24 @@ const Navbar = () => {
                           <FaCog />
                           <span>Settings</span>
                         </Link>
+                        <Link
+                          to="/profile"
+                          className="mobile-nav-link"
+                          onClick={() => setIsMobileMenuOpen(false)}
+                        >
+                          <FaUser />
+                          <span>Profile</span>
+                        </Link>
 
                         <div className="mobile-nav-divider" />
 
                         <button
-                          onClick={handleLogout}
-                          className="mobile-nav-link logout"
+                          onClick={() => {
+                            handleLogout();
+                            setIsMobileMenuOpen(false);
+                          }}
+                          className="mobile-nav-link"
+                          style={{ color: '#ef4444' }}
                         >
                           <FaSignOutAlt />
                           <span>Sign Out</span>
@@ -1034,36 +1072,39 @@ const Navbar = () => {
                     </>
                   ) : (
                     <>
-                      {/* Mobile menu for non-authenticated users */}
-                      {publicNavItems.map((item) => (
+                      <div className="mobile-nav-links">
+                        {publicNavItems.map((item) => (
+                          <Link
+                            key={item.path}
+                            to={item.path}
+                            className="mobile-nav-link"
+                            onClick={() => setIsMobileMenuOpen(false)}
+                          >
+                            <span>{item.label}</span>
+                          </Link>
+                        ))}
+
+                        <div className="mobile-nav-divider" />
+
                         <Link
-                          key={item.path}
-                          to={item.path}
+                          to="/login"
                           className="mobile-nav-link"
                           onClick={() => setIsMobileMenuOpen(false)}
                         >
-                          <span>{item.label}</span>
+                          <FaSignInAlt />
+                          <span>Login</span>
                         </Link>
-                      ))}
-
-                      <Link
-                        to="/login"
-                        className="mobile-nav-link"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <FaSignInAlt />
-                        <span>Login</span>
-                      </Link>
-                      <button
-                        onClick={() => {
-                          handleGetStarted();
-                          setIsMobileMenuOpen(false);
-                        }}
-                        className="mobile-get-started-btn"
-                      >
-                        <FaRocket />
-                        <span>Get Started Free</span>
-                      </button>
+                        <button
+                          onClick={() => {
+                            handleGetStarted();
+                            setIsMobileMenuOpen(false);
+                          }}
+                          className="mobile-get-started-btn"
+                        >
+                          <FaRocket />
+                          <span>Get Started Free</span>
+                        </button>
+                      </div>
                     </>
                   )}
                 </div>
@@ -1076,4 +1117,4 @@ const Navbar = () => {
   );
 };
 
-export default Navbar;
+export default React.memo(Navbar);

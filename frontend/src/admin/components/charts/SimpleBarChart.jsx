@@ -36,4 +36,4 @@ const SimpleBarChart = ({ data }) => {
   );
 };
 
-export default SimpleBarChart;
+export default React.memo(SimpleBarChart);

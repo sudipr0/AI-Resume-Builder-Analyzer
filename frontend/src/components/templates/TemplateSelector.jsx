@@ -166,4 +166,4 @@ const TemplateSelector = ({ isOpen, onClose, currentTemplate, onSelect }) => {
   );
 };
 
-export default TemplateSelector;
+export default React.memo(TemplateSelector);

@@ -389,4 +389,4 @@ const PersonalInfoWizard = ({
   );
 };
 
-export default PersonalInfoWizard;
+export default React.memo(PersonalInfoWizard);

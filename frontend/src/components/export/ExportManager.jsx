@@ -918,4 +918,4 @@ const ExportManager = ({
   );
 };
 
-export default ExportManager;
+export default React.memo(ExportManager);

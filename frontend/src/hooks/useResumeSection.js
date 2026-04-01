@@ -1,6 +1,7 @@
-// src/hooks/useResumeSection.js
+// src/hooks/useResumeSection.js - COMPLETELY FIXED
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'react-hot-toast';
+import { useResume } from '../context/ResumeContext';
 
 export const useResumeSection = (initialData = null, options = {}) => {
   const {
@@ -8,21 +9,50 @@ export const useResumeSection = (initialData = null, options = {}) => {
     onUpdate = null,
     onSave = null,
     autoSave = true,
-    autoSaveDelay = 2000,
+    autoSaveDelay = 1000,
     validationRules = {},
     requiredFields = [],
     showNotifications = true
   } = options;
 
-  const [formData, setFormData] = useState(initialData || getDefaultData(sectionId));
+  // Get the resume context for direct saving
+  const { currentResume, saveResume, updateCurrentResumeData } = useResume();
+
+  const [formData, setFormData] = useState(() => {
+    // Initialize from currentResume if available
+    if (currentResume?.[sectionId] !== undefined) {
+      const resumeData = currentResume[sectionId];
+      return resumeData || initialData || getDefaultData(sectionId);
+    }
+    return initialData || getDefaultData(sectionId);
+  });
+
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [lastSaved, setLastSaved] = useState(null);
+  const [lastSavedData, setLastSavedData] = useState(formData);
 
   const autoSaveTimeoutRef = useRef(null);
-  const initialDataRef = useRef(initialData);
+  const isMountedRef = useRef(true);
+  const saveInProgressRef = useRef(false);
+  const hasInitialized = useRef(false);
+
+  // Set mounted flag
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+      if (isDirty && formData) {
+        console.log(`⚠️ [useResumeSection] Component unmounting with unsaved changes - saving immediately for:`, sectionId);
+        handleSaveImmediate();
+      }
+    };
+  }, [sectionId, isDirty, formData]);
 
   // Get default data structure for section
   function getDefaultData(sectionId) {
@@ -58,21 +88,36 @@ export const useResumeSection = (initialData = null, options = {}) => {
     return defaults[sectionId] || {};
   }
 
-  // Sync external data changes
+  // FIXED: Only sync external data on initial mount, never reset after user starts typing
   useEffect(() => {
-    console.log('🔄 [useResumeSection] Syncing external data for:', sectionId);
+    console.log('🔄 [useResumeSection] Checking external data for:', sectionId);
 
-    if (initialData && JSON.stringify(initialData) !== JSON.stringify(initialDataRef.current)) {
-      initialDataRef.current = initialData;
-
-      const mergedData = mergeWithDefaults(initialData, sectionId);
-      setFormData(mergedData);
-      setIsDirty(false);
-      setErrors({});
-
-      console.log('✅ [useResumeSection] Data synced successfully');
+    // Only run if we haven't initialized yet
+    if (!hasInitialized.current) {
+      // Check if currentResume has data for this section
+      if (currentResume?.[sectionId] !== undefined) {
+        const resumeData = currentResume[sectionId];
+        const mergedData = mergeWithDefaults(resumeData, sectionId);
+        if (isMountedRef.current) {
+          setFormData(mergedData);
+          setLastSavedData(mergedData);
+          setIsDirty(false);
+          setErrors({});
+        }
+        console.log('✅ [useResumeSection] Initial data loaded from context');
+      } else if (initialData) {
+        const mergedData = mergeWithDefaults(initialData, sectionId);
+        if (isMountedRef.current) {
+          setFormData(mergedData);
+          setLastSavedData(mergedData);
+          setIsDirty(false);
+          setErrors({});
+        }
+        console.log('✅ [useResumeSection] Initial data loaded from props');
+      }
+      hasInitialized.current = true;
     }
-  }, [initialData, sectionId]);
+  }, [currentResume, sectionId, initialData]); // Add currentResume to dependencies
 
   // Merge external data with defaults
   function mergeWithDefaults(data, sectionId) {
@@ -149,6 +194,11 @@ export const useResumeSection = (initialData = null, options = {}) => {
     return itemDefaults[sectionId] || {};
   }
 
+  // Check if data has changed
+  const hasDataChanged = useCallback(() => {
+    return JSON.stringify(formData) !== JSON.stringify(lastSavedData);
+  }, [formData, lastSavedData]);
+
   // Handle field change
   const handleChange = useCallback((field, value) => {
     console.log('✏️ [useResumeSection] Field changed:', { sectionId, field, value });
@@ -159,7 +209,6 @@ export const useResumeSection = (initialData = null, options = {}) => {
       }
 
       if (Array.isArray(prev)) {
-        // Handle array updates
         return prev;
       }
 
@@ -168,6 +217,11 @@ export const useResumeSection = (initialData = null, options = {}) => {
 
     setIsDirty(true);
     setTouched(prev => ({ ...prev, [field]: true }));
+
+    // Clear field error if exists
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
 
     // Auto-save after delay
     if (autoSave) {
@@ -179,7 +233,7 @@ export const useResumeSection = (initialData = null, options = {}) => {
         handleSave();
       }, autoSaveDelay);
     }
-  }, [sectionId, autoSave, autoSaveDelay]);
+  }, [sectionId, autoSave, autoSaveDelay, errors]);
 
   // Handle array item change
   const handleArrayChange = useCallback((index, field, value) => {
@@ -209,7 +263,7 @@ export const useResumeSection = (initialData = null, options = {}) => {
   // Add item to array
   const addItem = useCallback((item = null) => {
     if (!Array.isArray(formData)) {
-      return;
+      return -1;
     }
 
     console.log('➕ [useResumeSection] Adding item to:', sectionId);
@@ -222,10 +276,10 @@ export const useResumeSection = (initialData = null, options = {}) => {
     setIsDirty(true);
 
     if (autoSave) {
-      handleSave();
+      handleSave(); // Save immediately for array changes
     }
 
-    return newArray.length - 1; // Return index of new item
+    return newArray.length - 1;
   }, [formData, sectionId, autoSave]);
 
   // Remove item from array
@@ -241,7 +295,7 @@ export const useResumeSection = (initialData = null, options = {}) => {
     setIsDirty(true);
 
     if (autoSave) {
-      handleSave();
+      handleSave(); // Save immediately for array changes
     }
   }, [formData, sectionId, autoSave]);
 
@@ -261,7 +315,7 @@ export const useResumeSection = (initialData = null, options = {}) => {
     setIsDirty(true);
 
     if (autoSave) {
-      handleSave();
+      handleSave(); // Save immediately for array changes
     }
   }, [formData, sectionId, autoSave]);
 
@@ -308,10 +362,10 @@ export const useResumeSection = (initialData = null, options = {}) => {
     return Object.keys(newErrors).length === 0;
   }, [formData, sectionId, requiredFields, validationRules]);
 
-  // Save data
-  const handleSave = useCallback(async () => {
-    if (!isDirty) {
-      console.log('⏸️ [useResumeSection] No changes to save');
+  // Immediate save function
+  const handleSaveImmediate = useCallback(async () => {
+    if (!hasDataChanged() || saveInProgressRef.current) {
+      console.log('⏸️ [useResumeSection] No changes to save or save in progress');
       return false;
     }
 
@@ -324,22 +378,41 @@ export const useResumeSection = (initialData = null, options = {}) => {
       return false;
     }
 
+    saveInProgressRef.current = true;
     setIsSaving(true);
-    console.log('💾 [useResumeSection] Saving:', sectionId);
+    console.log('💾 [useResumeSection] Saving immediately:', sectionId);
 
     try {
-      // Call update callback
+      // First update the resume context (local state)
       if (onUpdate) {
         await onUpdate(formData);
+      } else {
+        // Direct context update if no onUpdate provided
+        updateCurrentResumeData({ [sectionId]: formData });
       }
 
-      // Call save callback
+      // Then trigger the actual API save through context
+      if (currentResume) {
+        const updatedResume = {
+          ...currentResume,
+          [sectionId]: formData,
+          updatedAt: new Date().toISOString()
+        };
+
+        await saveResume(updatedResume);
+        console.log('✅ [useResumeSection] Backend save successful');
+      }
+
+      // Call custom save callback if provided
       if (onSave) {
         await onSave();
       }
 
-      setIsDirty(false);
-      setLastSaved(new Date());
+      if (isMountedRef.current) {
+        setIsDirty(false);
+        setLastSavedData(formData);
+        setLastSaved(new Date());
+      }
 
       if (showNotifications) {
         toast.success(`${sectionId} saved successfully`);
@@ -350,29 +423,39 @@ export const useResumeSection = (initialData = null, options = {}) => {
     } catch (error) {
       console.error('❌ [useResumeSection] Save failed:', error);
 
-      if (showNotifications) {
+      if (showNotifications && isMountedRef.current) {
         toast.error('Failed to save changes');
       }
 
       return false;
     } finally {
-      setIsSaving(false);
+      if (isMountedRef.current) {
+        setIsSaving(false);
+      }
+      saveInProgressRef.current = false;
     }
-  }, [isDirty, formData, sectionId, onUpdate, onSave, validate, showNotifications]);
+  }, [hasDataChanged, formData, sectionId, onUpdate, onSave, validate, showNotifications, currentResume, saveResume, updateCurrentResumeData]);
+
+  // Debounced save
+  const handleSave = useCallback(async () => {
+    return handleSaveImmediate();
+  }, [handleSaveImmediate]);
 
   // Reset form
   const resetForm = useCallback(() => {
     console.log('🔄 [useResumeSection] Resetting form:', sectionId);
 
-    setFormData(initialData || getDefaultData(sectionId));
+    const defaultData = getDefaultData(sectionId);
+    setFormData(defaultData);
+    setLastSavedData(defaultData);
     setIsDirty(false);
     setErrors({});
     setTouched({});
 
     if (autoSaveTimeoutRef.current) {
-      clearTimeout(autoSaveSaveTimeoutRef.current);
+      clearTimeout(autoSaveTimeoutRef.current);
     }
-  }, [initialData, sectionId]);
+  }, [sectionId]);
 
   // Mark field as touched
   const markAsTouched = useCallback((field) => {
@@ -442,6 +525,7 @@ export const useResumeSection = (initialData = null, options = {}) => {
     errors,
     touched,
     lastSaved,
+    hasDataChanged: hasDataChanged(),
 
     // Actions
     handleChange,
@@ -450,6 +534,7 @@ export const useResumeSection = (initialData = null, options = {}) => {
     removeItem,
     moveItem,
     handleSave,
+    handleSaveImmediate,
     resetForm,
     validate,
 

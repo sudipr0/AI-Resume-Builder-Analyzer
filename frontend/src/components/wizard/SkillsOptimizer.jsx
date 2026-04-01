@@ -318,4 +318,4 @@ const SkillsOptimizer = ({
   );
 };
 
-export default SkillsOptimizer;
+export default React.memo(SkillsOptimizer);

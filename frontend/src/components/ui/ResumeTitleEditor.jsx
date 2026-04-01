@@ -258,4 +258,4 @@ const ResumeTitleEditor = ({ currentTitle, onSave, onClose }) => {
   );
 };
 
-export default ResumeTitleEditor;
+export default React.memo(ResumeTitleEditor);

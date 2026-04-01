@@ -223,4 +223,4 @@ const DragDropSections = ({ resumeData, sections, onUpdate, onClose }) => {
   );
 };
 
-export default DragDropSections;
+export default React.memo(DragDropSections);

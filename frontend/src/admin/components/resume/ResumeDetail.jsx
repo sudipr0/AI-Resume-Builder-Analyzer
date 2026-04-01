@@ -292,4 +292,4 @@ const ResumeDetail = () => {
   );
 };
 
-export default ResumeDetail;
+export default React.memo(ResumeDetail);

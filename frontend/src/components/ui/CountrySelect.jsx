@@ -475,4 +475,4 @@ const CountrySelect = ({
   );
 };
 
-export default CountrySelect;
+export default React.memo(CountrySelect);

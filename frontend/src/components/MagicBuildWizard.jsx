@@ -265,4 +265,4 @@ const MagicBuildWizard = ({ extractedData, onComplete, onCancel }) => {
   );
 };
 
-export default MagicBuildWizard;
+export default React.memo(MagicBuildWizard);

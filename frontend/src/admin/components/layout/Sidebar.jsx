@@ -395,4 +395,4 @@ const Sidebar = ({ isOpen, onClose, isMobile, admin }) => {
   );
 };
 
-export default Sidebar;
+export default React.memo(Sidebar);

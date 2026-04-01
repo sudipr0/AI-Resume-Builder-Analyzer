@@ -907,4 +907,4 @@ const ProjectsBuilder = ({
   );
 };
 
-export default ProjectsBuilder;
+export default React.memo(ProjectsBuilder);

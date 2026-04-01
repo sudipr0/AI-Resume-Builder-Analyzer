@@ -272,4 +272,4 @@ TopActionBar.defaultProps = {
   isSidebarOpen: true
 };
 
-export default TopActionBar;
+export default React.memo(TopActionBar);

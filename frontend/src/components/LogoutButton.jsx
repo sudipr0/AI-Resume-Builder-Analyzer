@@ -24,4 +24,4 @@ const LogoutButton = ({ className = '' }) => {
   );
 };
 
-export default LogoutButton;
+export default React.memo(LogoutButton);

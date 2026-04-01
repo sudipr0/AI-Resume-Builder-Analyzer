@@ -303,4 +303,4 @@ const AITemplateSelector = ({ currentTemplate, templates, resumeData, onSelect, 
   );
 };
 
-export default AITemplateSelector;
+export default React.memo(AITemplateSelector);

@@ -770,4 +770,4 @@ const Wrench = (props) => (
     </svg>
 );
 
-export default JDKeywordExtractor;
+export default React.memo(JDKeywordExtractor);

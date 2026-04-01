@@ -5,7 +5,7 @@ const router = express.Router();
 // Import existing route modules
 import authRoutes from './authRoutes.js';
 import userRoutes from './userRoutes.js';
-import resumeRoutes from './resumeRoutes.js';
+import resumeRoutes from './resumes.js';
 import aiRoutes from '../ai/routes/aiRoutes.js';
 import adminRoutes from './adminRoutes.js';
 

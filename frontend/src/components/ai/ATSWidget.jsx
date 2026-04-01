@@ -13,4 +13,4 @@ const ATSWidget = ({ score, breakdown }) => {
     );
 };
 
-export default ATSWidget;
+export default React.memo(ATSWidget);

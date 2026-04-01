@@ -73,4 +73,4 @@ const AdminApp = () => {
   );
 };
 
-export default AdminApp;
+export default React.memo(AdminApp);

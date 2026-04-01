@@ -1,194 +1,134 @@
-const jwt = require('jsonwebtoken');
-const User = require('../models/User.js');
+// backend/src/middleware/authMiddleware.js - IMPROVED VERSION
+import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
 
-/**
- * Main authentication middleware
- */
-const protect = async (req, res, next) => {
+const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret-key-change-in-production';
+
+export const protect = async (req, res, next) => {
   try {
     let token;
 
-    // Check Authorization header
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    // 1. Check Authorization header
+    if (req.headers.authorization?.startsWith('Bearer')) {
       token = req.headers.authorization.split(' ')[1];
     }
-    // Check cookie
+    // 2. Check cookie (for OAuth)
     else if (req.cookies?.token) {
       token = req.cookies.token;
     }
 
+    // 3. If no token in production, return error
     if (!token) {
+      // In development, we might want to allow mock users for testing
+      if (process.env.NODE_ENV === 'development' && process.env.ALLOW_MOCK_USERS === 'true') {
+        console.log('⚠️ [DEV] Using mock user (no token)');
+        req.user = {
+          id: 'dev_user_id',
+          _id: 'dev_user_id',
+          role: 'user'
+        };
+        return next();
+      }
+
       return res.status(401).json({
         success: false,
-        error: 'Not authorized, no token'
+        error: 'Not authorized - No token provided'
       });
     }
 
     // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    const secret = process.env.JWT_SECRET || 'your-jwt-secret-key-change-in-production';
+    const decoded = jwt.verify(token, secret);
 
-    // Get user from token
-    const user = await User.findById(decoded.id || decoded.userId).select('-password');
+    // Get user from token - try different possible ID fields
+    const userId = decoded.id || decoded.userId || decoded._id || decoded.sub;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Not authorized - Invalid token payload'
+      });
+    }
+
+    const user = await User.findById(userId).select('-password');
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        error: 'Not authorized, user not found'
+        error: 'Not authorized - User not found'
       });
     }
 
-    // Check if user is active
-    if (user.isSuspended || !user.isActive) {
-      return res.status(401).json({
+    // Check if user is active/suspended
+    if (user.isSuspended === true) {
+      return res.status(403).json({
         success: false,
-        error: 'Account is suspended or inactive'
+        error: 'Account has been suspended'
       });
     }
 
+    // Attach user to request with both id and _id for compatibility
     req.user = {
-      id: user._id,
-      _id: user._id,
+      id: user._id.toString(),
+      _id: user._id.toString(),
       email: user.email,
       name: user.name,
-      role: user.role,
-      isActive: user.isActive,
-      isSuspended: user.isSuspended
+      role: user.role || 'user'
     };
-    next();
-  } catch (error) {
-    console.error('Auth middleware error:', error);
 
+    console.log(`✅ User authenticated: ${user.email} (${user._id})`);
+    next();
+
+  } catch (error) {
+    console.error('❌ Auth middleware error:', {
+      message: error.message,
+      name: error.name,
+      stack: error.stack
+    });
+
+    // Handle specific JWT errors
     if (error.name === 'JsonWebTokenError') {
       return res.status(401).json({
         success: false,
-        error: 'Not authorized, invalid token'
+        error: 'Not authorized - Invalid token'
       });
     }
 
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({
         success: false,
-        error: 'Not authorized, token expired'
+        error: 'Not authorized - Token expired'
       });
     }
 
-    res.status(401).json({
-      success: false,
-      error: 'Not authorized'
-    });
-  }
-};
-
-// Alias for protect
-const authMiddleware = protect;
-
-/**
- * Optional authentication - doesn't fail if no token
- */
-const optionalAuth = async (req, res, next) => {
-  try {
-    let token;
-
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
-    } else if (req.cookies?.token) {
-      token = req.cookies.token;
+    // In development, allow mock user on error
+    if (process.env.NODE_ENV === 'development' && process.env.ALLOW_MOCK_USERS === 'true') {
+      console.log('⚠️ [DEV] Using mock user due to auth error');
+      req.user = {
+        id: 'dev_user_id',
+        _id: 'dev_user_id',
+        role: 'user'
+      };
+      return next();
     }
 
-    if (token) {
-      try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-        const user = await User.findById(decoded.id || decoded.userId).select('-password');
-        if (user && !user.isSuspended && user.isActive) {
-          req.user = {
-            id: user._id,
-            _id: user._id,
-            email: user.email,
-            name: user.name,
-            role: user.role,
-            isActive: user.isActive
-          };
-        }
-      } catch (error) {
-        // Silently fail for optional auth
-      }
-    }
-    next();
-  } catch (error) {
-    next();
-  }
-};
-
-/**
- * Admin middleware
- */
-const adminMiddleware = (req, res, next) => {
-  if (!req.user) {
     return res.status(401).json({
       success: false,
-      error: 'Not authorized'
+      error: 'Not authorized - Authentication failed'
     });
   }
+};
 
-  if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
-    return res.status(403).json({
+// Admin middleware
+export const admin = (req, res, next) => {
+  if (req.user && (req.user.role === 'admin' || req.user.role === 'super_admin')) {
+    next();
+  } else {
+    res.status(403).json({
       success: false,
       error: 'Not authorized as admin'
     });
   }
-
-  next();
 };
 
-/**
- * Super admin middleware
- */
-const superAdminMiddleware = (req, res, next) => {
-  if (!req.user) {
-    return res.status(401).json({
-      success: false,
-      error: 'Not authorized'
-    });
-  }
-
-  if (req.user.role !== 'super_admin') {
-    return res.status(403).json({
-      success: false,
-      error: 'Not authorized as super admin'
-    });
-  }
-
-  next();
-};
-
-/**
- * Check if user has specific role
- */
-const hasRole = (...roles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        error: 'Not authorized'
-      });
-    }
-
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({
-        success: false,
-        error: `Not authorized. Required role: ${roles.join(' or ')}`
-      });
-    }
-
-    next();
-  };
-};
-
-module.exports = {
-  protect,
-  authMiddleware,
-  optionalAuth,
-  adminMiddleware,
-  superAdminMiddleware,
-  hasRole
-};
+export default { protect, admin };

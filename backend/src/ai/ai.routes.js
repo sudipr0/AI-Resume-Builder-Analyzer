@@ -1,44 +1,45 @@
-import express from "express";
-import * as ctrl from "./ai.controller.js";
-import { validateRequest, rateLimiter } from "../../middleware/validateRequest.js";
-import { requireApiKey } from "../../middleware/authMiddleware.js";
+// backend/src/ai/ai.routes.js
+import express from 'express';
+import {
+    checkHealth,
+    fullResumeAnalysis,
+    generateSummary,
+    optimizeSummary,
+    extractKeywords,
+    analyzeResume,
+    generateBullets,
+    suggestSkills,
+    calculateATSScore,
+    getStats
+} from './ai.controller.js';
+import { authenticateJWT } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Public routes (rate limited)
-router.post("/analyze", rateLimiter, validateRequest, ctrl.analyzeResume);
-router.post("/ats-score", rateLimiter, validateRequest, ctrl.calculateATSScore);
-router.post("/keyword-match", rateLimiter, validateRequest, ctrl.analyzeKeywordMatch);
-router.post("/extract-keywords", rateLimiter, validateRequest, ctrl.extractKeywords);
-router.post("/suggest-improvements", rateLimiter, validateRequest, ctrl.suggestImprovements);
+// Public endpoints
+router.get('/health', checkHealth);
+router.get('/status', checkHealth);
 
-// Content optimization routes
-router.post("/rewrite-bullet", rateLimiter, validateRequest, ctrl.rewriteBullet);
-router.post("/optimize-summary", rateLimiter, validateRequest, ctrl.optimizeSummary);
-router.post("/optimize-section", rateLimiter, validateRequest, ctrl.optimizeSection);
-router.post("/generate-bullet", rateLimiter, validateRequest, ctrl.generateBulletPoint);
+// Protected endpoints (require authentication)
+router.use(authenticateJWT);
 
-// Skills & Analysis routes
-router.post("/suggest-skills", rateLimiter, validateRequest, ctrl.suggestSkills);
-router.post("/gap-analysis", rateLimiter, validateRequest, ctrl.performGapAnalysis);
-router.post("/full-review", rateLimiter, validateRequest, ctrl.fullReview);
+// ============ RESUME ANALYSIS ============
+router.post('/analyze/full', fullResumeAnalysis);
+router.post('/analyze/resume', analyzeResume);
+router.post('/analyze/ats', calculateATSScore);
 
-// Advanced AI routes (may require API key)
-router.post("/generate-resume", requireApiKey, rateLimiter, ctrl.generateResumeFromScratch);
-router.post("/career-path", requireApiKey, rateLimiter, ctrl.suggestCareerPath);
-router.post("/salary-estimate", requireApiKey, rateLimiter, ctrl.estimateSalary);
+// ============ SUMMARY ENDPOINTS ============
+router.post('/generate/summary', generateSummary);
+router.post('/optimize/summary', optimizeSummary);
 
-// Batch processing
-router.post("/batch-analyze", requireApiKey, rateLimiter, ctrl.batchAnalyze);
-router.post("/compare-resumes", requireApiKey, rateLimiter, ctrl.compareResumes);
+// ============ KEYWORD ENDPOINTS ============
+router.post('/extract-keywords', extractKeywords);
 
-// Health and status
-router.get("/health", ctrl.healthCheck);
-router.get("/status", ctrl.getServiceStatus);
-router.get("/capabilities", ctrl.getCapabilities);
+// ============ GENERATION ENDPOINTS ============
+router.post('/generate/bullets', generateBullets);
+router.post('/suggest/skills', suggestSkills);
 
-// Analytics and insights
-router.post("/trends", rateLimiter, ctrl.getIndustryTrends);
-router.post("/competitor-analysis", requireApiKey, rateLimiter, ctrl.analyzeCompetitors);
+// ============ UTILITY ============
+router.get('/stats', getStats);
 
 export default router;

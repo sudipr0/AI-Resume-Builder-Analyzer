@@ -72,4 +72,4 @@ const LiveIndicator = ({
   );
 };
 
-export default LiveIndicator;
+export default React.memo(LiveIndicator);

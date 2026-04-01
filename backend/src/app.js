@@ -1,4 +1,4 @@
-// backend/src/app.js - FIXED VERSION (No duplicate declarations)
+// backend/src/app.js - COMPLETE FIXED VERSION
 import dotenv from 'dotenv';
 dotenv.config();
 import express from 'express';
@@ -23,9 +23,10 @@ import winstonDailyRotateFile from 'winston-daily-rotate-file';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
-import aiRoutes from './routes/aiRoutes.js';
-import server from './server.js';
-server.startServer().catch(console.error);
+
+// ✅ IMPORT AI ROUTES FROM YOUR AI FOLDER STRUCTURE
+import aiRoutes from './ai/ai.routes.js';
+import resumeExtractionRoutes from './routes/resumeExtraction.routes.js';
 
 // Get current directory
 const __filename = fileURLToPath(import.meta.url);
@@ -34,7 +35,7 @@ const __dirname = path.dirname(__filename);
 // ======================
 // CONFIGURATION
 // ======================
-const PORT = parseInt(process.env.PORT) || 5000;
+const PORT = parseInt(process.env.PORT) || 5001;
 const HOST = process.env.HOST || '0.0.0.0';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
@@ -57,8 +58,7 @@ const logger = winston.createLogger({
             format: winston.format.combine(
                 winston.format.colorize(),
                 winston.format.printf(({ timestamp, level, message, service, ...meta }) => {
-                    return `${timestamp} [${service}] ${level}: ${message} ${Object.keys(meta).length ? JSON.stringify(meta) : ''
-                        }`;
+                    return `${timestamp} [${service}] ${level}: ${message} ${Object.keys(meta).length ? JSON.stringify(meta) : ''}`;
                 })
             ),
         }),
@@ -91,13 +91,10 @@ const httpServer = createServer(app);
 // ======================
 const corsOptions = {
     origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
-        // Allow all origins in development
         if (NODE_ENV === 'development') {
             return callback(null, true);
         }
-        // In production, check against allowed origins
         const allowedOrigins = process.env.CORS_ORIGIN
             ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
             : [FRONTEND_URL];
@@ -141,8 +138,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-
-// Handle preflight requests
 app.options('*', cors(corsOptions));
 
 // ======================
@@ -313,7 +308,7 @@ const sessionConfig = {
     cookie: {
         secure: NODE_ENV === 'production',
         httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        maxAge: 24 * 60 * 60 * 1000,
         sameSite: 'lax',
     },
     name: 'ai-resume-builder.sid',
@@ -362,7 +357,6 @@ const connectAppDB = async () => {
             readyState: mongoose.connection.readyState,
         });
 
-        // Connection event handlers
         mongoose.connection.on('error', (err) => {
             logger.error('❌ MongoDB Connection Error:', err);
         });
@@ -512,7 +506,6 @@ const authenticateAdmin = async (req, res, next) => {
             });
         }
 
-        // Try admin secret first, then regular secret
         let decoded;
         try {
             decoded = jwt.verify(token, process.env.JWT_ADMIN_SECRET || process.env.JWT_SECRET);
@@ -617,11 +610,29 @@ app.get('/', (req, res) => {
                 me: 'GET /api/auth/me',
                 logout: 'POST /api/auth/logout'
             },
+            resume: {
+                list: 'GET /api/resumes',
+                create: 'POST /api/resumes',
+                get: 'GET /api/resumes/:id',
+                update: 'PUT /api/resumes/:id',
+                delete: 'DELETE /api/resumes/:id',
+                analyze: 'POST /api/resumes/:id/analyze',
+                stats: 'GET /api/resumes/stats'
+            },
+            ai: {
+                status: 'GET /api/ai/status',
+                analyze: 'POST /api/ai/analyze',
+                enhance: 'POST /api/ai/enhance',
+                generate: 'POST /api/ai/generate',
+                keywords: 'POST /api/ai/keywords',
+                ats: 'POST /api/ai/ats-score'
+            },
             admin: {
                 login: 'POST /api/admin/auth/login',
                 dashboard: 'GET /api/admin/dashboard/stats',
                 users: 'GET /api/admin/users'
             },
+            dashboard: 'GET /api/dashboard/stats',
             health: 'GET /health'
         },
         timestamp: new Date().toISOString(),
@@ -632,7 +643,6 @@ app.get('/', (req, res) => {
 // ======================
 // USER AUTHENTICATION ROUTES
 // ======================
-// User registration
 app.post('/api/auth/register', async (req, res) => {
     const { name, email, password } = req.body;
     const requestId = req.headers['x-request-id'];
@@ -640,7 +650,6 @@ app.post('/api/auth/register', async (req, res) => {
     logger.info(`📝 User registration attempt: ${email}`, { requestId });
 
     try {
-        // Validation
         if (!name || !email || !password) {
             return res.status(400).json({
                 success: false,
@@ -657,7 +666,6 @@ app.post('/api/auth/register', async (req, res) => {
             });
         }
 
-        // Check if user exists
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             return res.status(400).json({
@@ -667,7 +675,6 @@ app.post('/api/auth/register', async (req, res) => {
             });
         }
 
-        // Create user
         const user = new User({
             name,
             email,
@@ -676,7 +683,6 @@ app.post('/api/auth/register', async (req, res) => {
         });
         await user.save();
 
-        // Generate JWT token
         const token = jwt.sign(
             {
                 userId: user._id,
@@ -687,7 +693,6 @@ app.post('/api/auth/register', async (req, res) => {
             { expiresIn: process.env.JWT_EXPIRE || '30d' }
         );
 
-        // Prepare user response (without password)
         const userResponse = user.toObject();
         delete userResponse.password;
 
@@ -719,7 +724,6 @@ app.post('/api/auth/register', async (req, res) => {
     }
 });
 
-// User login
 app.post('/api/auth/login', async (req, res) => {
     const { email, password, rememberMe } = req.body;
     const requestId = req.headers['x-request-id'];
@@ -727,7 +731,6 @@ app.post('/api/auth/login', async (req, res) => {
     logger.info(`🔐 User login attempt: ${email}`, { requestId });
 
     try {
-        // Validation
         if (!email || !password) {
             return res.status(400).json({
                 success: false,
@@ -736,7 +739,6 @@ app.post('/api/auth/login', async (req, res) => {
             });
         }
 
-        // Find user with password
         const user = await User.findOne({ email }).select('+password');
         if (!user) {
             return res.status(401).json({
@@ -746,7 +748,6 @@ app.post('/api/auth/login', async (req, res) => {
             });
         }
 
-        // Check if user is active
         if (!user.isActive) {
             return res.status(403).json({
                 success: false,
@@ -755,7 +756,6 @@ app.post('/api/auth/login', async (req, res) => {
             });
         }
 
-        // Verify password
         const isPasswordValid = await user.comparePassword(password);
         if (!isPasswordValid) {
             return res.status(401).json({
@@ -765,11 +765,9 @@ app.post('/api/auth/login', async (req, res) => {
             });
         }
 
-        // Update last login
         user.lastLogin = new Date();
         await user.save();
 
-        // Generate JWT token
         const token = jwt.sign(
             {
                 userId: user._id,
@@ -781,7 +779,6 @@ app.post('/api/auth/login', async (req, res) => {
             { expiresIn: rememberMe ? '30d' : '7d' }
         );
 
-        // Prepare user response (without password)
         const userResponse = user.toObject();
         delete userResponse.password;
 
@@ -806,7 +803,6 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// Get current user
 app.get('/api/auth/me', authenticateUser, (req, res) => {
     const userResponse = req.user.toObject();
     delete userResponse.password;
@@ -817,7 +813,6 @@ app.get('/api/auth/me', authenticateUser, (req, res) => {
     });
 });
 
-// User logout
 app.post('/api/auth/logout', authenticateUser, (req, res) => {
     res.json({
         success: true,
@@ -829,7 +824,6 @@ app.post('/api/auth/logout', authenticateUser, (req, res) => {
 // ======================
 // GOOGLE OAUTH ROUTES
 // ======================
-// Google OAuth redirect
 app.get('/api/auth/google', (req, res) => {
     if (!googleClient) {
         return res.status(501).json({
@@ -851,7 +845,6 @@ app.get('/api/auth/google', (req, res) => {
     res.redirect(redirectUrl);
 });
 
-// Google OAuth callback
 app.get('/api/auth/google/callback', async (req, res) => {
     const { code } = req.query;
     const requestId = req.headers['x-request-id'];
@@ -865,7 +858,6 @@ app.get('/api/auth/google/callback', async (req, res) => {
     }
 
     try {
-        // Exchange code for tokens
         const { tokens } = await googleClient.getToken({
             code,
             redirect_uri: process.env.NODE_ENV === 'production'
@@ -881,7 +873,6 @@ app.get('/api/auth/google/callback', async (req, res) => {
         const payload = ticket.getPayload();
         const { sub: googleId, email, name, picture } = payload;
 
-        // Find or create user
         let user = await User.findOne({
             $or: [
                 { googleId },
@@ -890,7 +881,6 @@ app.get('/api/auth/google/callback', async (req, res) => {
         });
 
         if (!user) {
-            // Create new user
             user = new User({
                 googleId,
                 name: name || email.split('@')[0],
@@ -904,7 +894,6 @@ app.get('/api/auth/google/callback', async (req, res) => {
             await user.save();
             logger.info(`✅ New Google user created: ${email}`, { requestId });
         } else {
-            // Update existing user
             user.googleId = googleId;
             user.isOAuth = true;
             user.lastLogin = new Date();
@@ -915,7 +904,6 @@ app.get('/api/auth/google/callback', async (req, res) => {
             logger.info(`✅ Existing user updated with Google: ${email}`, { requestId });
         }
 
-        // Generate JWT token
         const token = jwt.sign(
             {
                 userId: user._id,
@@ -928,11 +916,9 @@ app.get('/api/auth/google/callback', async (req, res) => {
             { expiresIn: '30d' }
         );
 
-        // Prepare user response
         const userResponse = user.toObject();
         delete userResponse.password;
 
-        // Redirect to frontend with token
         const redirectUrl = `${FRONTEND_URL}/auth/callback?token=${token}&user=${encodeURIComponent(JSON.stringify(userResponse))}`;
         res.redirect(redirectUrl);
     } catch (error) {
@@ -941,16 +927,10 @@ app.get('/api/auth/google/callback', async (req, res) => {
     }
 });
 
-// Google token verification (for frontend Google Sign-In)
 app.post('/api/auth/google/verify', async (req, res) => {
     const requestId = req.headers['x-request-id'];
-    console.log('Google verify request received:', {
-        body: req.body,
-        headers: req.headers
-    });
 
     if (!googleClient) {
-        console.error('Google client not configured');
         return res.status(501).json({
             success: false,
             error: 'Google OAuth not configured',
@@ -958,10 +938,8 @@ app.post('/api/auth/google/verify', async (req, res) => {
         });
     }
 
-    // Accept either credential or access_token
     const credential = req.body.credential || req.body.access_token;
     if (!credential) {
-        console.error('No credential provided');
         return res.status(400).json({
             success: false,
             error: 'Google token is required',
@@ -970,23 +948,14 @@ app.post('/api/auth/google/verify', async (req, res) => {
     }
 
     try {
-        console.log('Verifying Google token...');
-        // Verify Google token
         const ticket = await googleClient.verifyIdToken({
             idToken: credential,
             audience: process.env.GOOGLE_CLIENT_ID
         });
 
         const payload = ticket.getPayload();
-        console.log('Google payload received:', {
-            email: payload.email,
-            name: payload.name,
-            googleId: payload.sub
-        });
-
         const { sub: googleId, email, name, picture } = payload;
 
-        // Find or create user
         let user = await User.findOne({
             $or: [
                 { googleId },
@@ -995,7 +964,6 @@ app.post('/api/auth/google/verify', async (req, res) => {
         });
 
         if (!user) {
-            // Create new user
             user = new User({
                 googleId,
                 name: name || email.split('@')[0],
@@ -1008,9 +976,7 @@ app.post('/api/auth/google/verify', async (req, res) => {
             });
             await user.save();
             logger.info(`✅ New Google user created via verify: ${email}`, { requestId });
-            console.log('New user created:', email);
         } else {
-            // Update existing user
             user.googleId = googleId;
             user.isOAuth = true;
             user.lastLogin = new Date();
@@ -1019,10 +985,8 @@ app.post('/api/auth/google/verify', async (req, res) => {
             }
             await user.save();
             logger.info(`✅ Existing user updated via verify: ${email}`, { requestId });
-            console.log('Existing user updated:', email);
         }
 
-        // Generate JWT token
         const jwtToken = jwt.sign(
             {
                 userId: user._id,
@@ -1035,12 +999,10 @@ app.post('/api/auth/google/verify', async (req, res) => {
             { expiresIn: '30d' }
         );
 
-        // Prepare user response
         const userResponse = user.toObject();
         delete userResponse.password;
 
-        console.log('Google auth successful, sending response for:', email);
-        const responseData = {
+        res.json({
             success: true,
             message: 'Google authentication successful',
             data: {
@@ -1048,12 +1010,9 @@ app.post('/api/auth/google/verify', async (req, res) => {
                 user: userResponse
             },
             requestId
-        };
-        console.log('Sending response:', responseData);
-        res.json(responseData);
+        });
     } catch (error) {
-        console.error('❌ Google verification error:', error);
-        logger.error('Google token verification error:', {
+        logger.error('❌ Google verification error:', {
             error: error.message,
             stack: error.stack,
             requestId
@@ -1067,9 +1026,8 @@ app.post('/api/auth/google/verify', async (req, res) => {
 });
 
 // ======================
-// RESUME API ROUTES
+// RESUME MODEL
 // ======================
-// Resume Model
 const resumeSchema = new mongoose.Schema({
     userId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -1088,7 +1046,7 @@ const resumeSchema = new mongoose.Schema({
         required: [true, 'Resume content is required'],
         validate: {
             validator: function (v) {
-                return v.length >= 100; // At least 100 characters
+                return v.length >= 100;
             },
             message: 'Resume content must be at least 100 characters'
         }
@@ -1197,7 +1155,6 @@ const Resume = mongoose.models.Resume || mongoose.model('Resume', resumeSchema);
 // ======================
 // RESUME API ROUTES
 // ======================
-// Get user's resumes
 app.get('/api/resumes', authenticateUser, async (req, res) => {
     const {
         page = 1,
@@ -1210,31 +1167,22 @@ app.get('/api/resumes', authenticateUser, async (req, res) => {
     } = req.query;
 
     try {
-        // Build query
         const query = { userId: req.user._id };
-        if (status) {
-            query.status = status;
-        }
+        if (status) query.status = status;
         if (search) {
             query.$or = [
                 { title: { $regex: search, $options: 'i' } },
                 { content: { $regex: search, $options: 'i' } }
             ];
         }
-        if (tag) {
-            query.tags = { $in: [tag] };
-        }
+        if (tag) query.tags = { $in: [tag] };
 
-        // Calculate pagination
         const pageNum = parseInt(page);
         const limitNum = parseInt(limit);
         const skip = (pageNum - 1) * limitNum;
-
-        // Get sort order
         const sortOrder = order === 'asc' ? 1 : -1;
         const sortObj = { [sort]: sortOrder };
 
-        // Execute query with pagination
         const [resumes, total] = await Promise.all([
             Resume.find(query)
                 .populate('userId', 'name email')
@@ -1245,17 +1193,9 @@ app.get('/api/resumes', authenticateUser, async (req, res) => {
             Resume.countDocuments(query)
         ]);
 
-        // Calculate pagination metadata
         const pages = Math.ceil(total / limitNum);
         const hasNext = pageNum < pages;
         const hasPrev = pageNum > 1;
-
-        logger.info('Resumes fetched', {
-            userId: req.user._id,
-            count: resumes.length,
-            total,
-            page: pageNum
-        });
 
         res.json({
             success: true,
@@ -1275,11 +1215,7 @@ app.get('/api/resumes', authenticateUser, async (req, res) => {
             requestId: req.headers['x-request-id']
         });
     } catch (error) {
-        logger.error('Failed to fetch resumes', {
-            error: error.message,
-            userId: req.user._id,
-            requestId: req.headers['x-request-id']
-        });
+        logger.error('Failed to fetch resumes:', { error: error.message });
         res.status(500).json({
             success: false,
             error: 'Failed to fetch resumes',
@@ -1288,7 +1224,6 @@ app.get('/api/resumes', authenticateUser, async (req, res) => {
     }
 });
 
-// Get resume by ID
 app.get('/api/resumes/:id', authenticateUser, async (req, res) => {
     try {
         const resume = await Resume.findOne({
@@ -1304,17 +1239,10 @@ app.get('/api/resumes/:id', authenticateUser, async (req, res) => {
             });
         }
 
-        // Increment views if public
         if (resume.isPublic) {
             resume.views += 1;
             await resume.save({ validateBeforeSave: false });
         }
-
-        logger.info('Resume fetched', {
-            resumeId: resume._id,
-            userId: req.user._id,
-            requestId: req.headers['x-request-id']
-        });
 
         res.json({
             success: true,
@@ -1322,12 +1250,7 @@ app.get('/api/resumes/:id', authenticateUser, async (req, res) => {
             requestId: req.headers['x-request-id']
         });
     } catch (error) {
-        logger.error('Failed to fetch resume', {
-            error: error.message,
-            resumeId: req.params.id,
-            userId: req.user._id,
-            requestId: req.headers['x-request-id']
-        });
+        logger.error('Failed to fetch resume:', { error: error.message });
         res.status(500).json({
             success: false,
             error: 'Failed to fetch resume',
@@ -1336,12 +1259,10 @@ app.get('/api/resumes/:id', authenticateUser, async (req, res) => {
     }
 });
 
-// Create new resume
 app.post('/api/resumes', authenticateUser, async (req, res) => {
     const { title, content, template = 'modern', tags = [] } = req.body;
 
     try {
-        // Validate input
         if (!title || !content) {
             return res.status(400).json({
                 success: false,
@@ -1358,7 +1279,6 @@ app.post('/api/resumes', authenticateUser, async (req, res) => {
             });
         }
 
-        // Create resume
         const resume = new Resume({
             userId: req.user._id,
             title,
@@ -1370,13 +1290,6 @@ app.post('/api/resumes', authenticateUser, async (req, res) => {
 
         await resume.save();
 
-        logger.info('Resume created', {
-            resumeId: resume._id,
-            userId: req.user._id,
-            title,
-            requestId: req.headers['x-request-id']
-        });
-
         res.status(201).json({
             success: true,
             message: 'Resume created successfully',
@@ -1384,11 +1297,7 @@ app.post('/api/resumes', authenticateUser, async (req, res) => {
             requestId: req.headers['x-request-id']
         });
     } catch (error) {
-        logger.error('Failed to create resume', {
-            error: error.message,
-            userId: req.user._id,
-            requestId: req.headers['x-request-id']
-        });
+        logger.error('Failed to create resume:', { error: error.message });
         if (error.name === 'ValidationError') {
             const errors = Object.values(error.errors).map(err => err.message);
             return res.status(400).json({
@@ -1406,7 +1315,6 @@ app.post('/api/resumes', authenticateUser, async (req, res) => {
     }
 });
 
-// Update resume
 app.put('/api/resumes/:id', authenticateUser, async (req, res) => {
     try {
         const resume = await Resume.findOne({
@@ -1422,7 +1330,6 @@ app.put('/api/resumes/:id', authenticateUser, async (req, res) => {
             });
         }
 
-        // Update allowed fields
         const allowedUpdates = ['title', 'content', 'template', 'tags', 'status', 'isPublic'];
         Object.keys(req.body).forEach(key => {
             if (allowedUpdates.includes(key)) {
@@ -1432,13 +1339,6 @@ app.put('/api/resumes/:id', authenticateUser, async (req, res) => {
 
         await resume.save();
 
-        logger.info('Resume updated', {
-            resumeId: resume._id,
-            userId: req.user._id,
-            updates: Object.keys(req.body),
-            requestId: req.headers['x-request-id']
-        });
-
         res.json({
             success: true,
             message: 'Resume updated successfully',
@@ -1446,12 +1346,7 @@ app.put('/api/resumes/:id', authenticateUser, async (req, res) => {
             requestId: req.headers['x-request-id']
         });
     } catch (error) {
-        logger.error('Failed to update resume', {
-            error: error.message,
-            resumeId: req.params.id,
-            userId: req.user._id,
-            requestId: req.headers['x-request-id']
-        });
+        logger.error('Failed to update resume:', { error: error.message });
         res.status(500).json({
             success: false,
             error: 'Failed to update resume',
@@ -1460,7 +1355,6 @@ app.put('/api/resumes/:id', authenticateUser, async (req, res) => {
     }
 });
 
-// Delete resume
 app.delete('/api/resumes/:id', authenticateUser, async (req, res) => {
     try {
         const resume = await Resume.findOneAndDelete({
@@ -1476,24 +1370,13 @@ app.delete('/api/resumes/:id', authenticateUser, async (req, res) => {
             });
         }
 
-        logger.info('Resume deleted', {
-            resumeId: resume._id,
-            userId: req.user._id,
-            requestId: req.headers['x-request-id']
-        });
-
         res.json({
             success: true,
             message: 'Resume deleted successfully',
             requestId: req.headers['x-request-id']
         });
     } catch (error) {
-        logger.error('Failed to delete resume', {
-            error: error.message,
-            resumeId: req.params.id,
-            userId: req.user._id,
-            requestId: req.headers['x-request-id']
-        });
+        logger.error('Failed to delete resume:', { error: error.message });
         res.status(500).json({
             success: false,
             error: 'Failed to delete resume',
@@ -1502,7 +1385,6 @@ app.delete('/api/resumes/:id', authenticateUser, async (req, res) => {
     }
 });
 
-// Analyze resume
 app.post('/api/resumes/:id/analyze', authenticateUser, async (req, res) => {
     try {
         const resume = await Resume.findOne({
@@ -1518,17 +1400,9 @@ app.post('/api/resumes/:id/analyze', authenticateUser, async (req, res) => {
             });
         }
 
-        // Update status to processing
         resume.status = 'processing';
         await resume.save();
 
-        logger.info('Resume analysis started', {
-            resumeId: resume._id,
-            userId: req.user._id,
-            requestId: req.headers['x-request-id']
-        });
-
-        // Send immediate response
         res.json({
             success: true,
             message: 'Resume analysis started',
@@ -1586,27 +1460,12 @@ app.post('/api/resumes/:id/analyze', authenticateUser, async (req, res) => {
                 resume.analysisResult = analysisResult;
                 resume.lastAnalyzed = new Date();
                 await resume.save();
-
-                logger.info('Resume analysis completed', {
-                    resumeId: resume._id,
-                    userId: req.user._id,
-                    score: analysisResult.score
-                });
             } catch (analysisError) {
-                logger.error('Background analysis failed', {
-                    error: analysisError.message,
-                    resumeId: resume._id,
-                    userId: req.user._id
-                });
+                logger.error('Background analysis failed:', { error: analysisError.message });
             }
-        }, 3000); // 3 second delay for simulation
+        }, 3000);
     } catch (error) {
-        logger.error('Failed to start resume analysis', {
-            error: error.message,
-            resumeId: req.params.id,
-            userId: req.user._id,
-            requestId: req.headers['x-request-id']
-        });
+        logger.error('Failed to start resume analysis:', { error: error.message });
         res.status(500).json({
             success: false,
             error: 'Failed to start resume analysis',
@@ -1615,41 +1474,29 @@ app.post('/api/resumes/:id/analyze', authenticateUser, async (req, res) => {
     }
 });
 
-// Get resume stats
 app.get('/api/resumes/stats', authenticateUser, async (req, res) => {
     try {
         const userId = req.user._id;
-
-        // Get total resumes
         const totalResumes = await Resume.countDocuments({ userId });
 
-        // Get resumes by status
         const statusStats = await Resume.aggregate([
             { $match: { userId } },
             { $group: { _id: '$status', count: { $sum: 1 } } }
         ]);
 
-        // Get average score
         const scoreStats = await Resume.aggregate([
             { $match: { userId, status: 'analyzed', 'analysisResult.score': { $exists: true } } },
             { $group: { _id: null, avgScore: { $avg: '$analysisResult.score' } } }
         ]);
 
-        // Get recent activity
         const recentResumes = await Resume.find({ userId })
             .sort({ updatedAt: -1 })
             .limit(5)
             .select('title status analysisResult.score updatedAt');
 
-        // Calculate total storage (simulated)
         const storageStats = await Resume.aggregate([
             { $match: { userId } },
-            {
-                $group: {
-                    _id: null,
-                    totalSize: { $sum: { $ifNull: ['$fileSize', 1024] } } // Default 1KB per resume
-                }
-            }
+            { $group: { _id: null, totalSize: { $sum: { $ifNull: ['$fileSize', 1024] } } } }
         ]);
 
         const stats = {
@@ -1660,8 +1507,7 @@ app.get('/api/resumes/stats', authenticateUser, async (req, res) => {
             }, {}),
             avgScore: scoreStats[0]?.avgScore ? Math.round(scoreStats[0].avgScore) : 0,
             storageUsed: storageStats[0]?.totalSize ?
-                `${Math.round(storageStats[0].totalSize / 1024 / 1024)} MB` :
-                '0 MB',
+                `${Math.round(storageStats[0].totalSize / 1024 / 1024)} MB` : '0 MB',
             recentActivity: recentResumes.map(resume => ({
                 id: resume._id,
                 title: resume.title,
@@ -1670,29 +1516,11 @@ app.get('/api/resumes/stats', authenticateUser, async (req, res) => {
                 updatedAt: resume.updatedAt
             })),
             scoreDistribution: {
-                excellent: await Resume.countDocuments({
-                    userId,
-                    status: 'analyzed',
-                    'analysisResult.score': { $gte: 80 }
-                }),
-                good: await Resume.countDocuments({
-                    userId,
-                    status: 'analyzed',
-                    'analysisResult.score': { $gte: 60, $lt: 80 }
-                }),
-                needsImprovement: await Resume.countDocuments({
-                    userId,
-                    status: 'analyzed',
-                    'analysisResult.score': { $lt: 60 }
-                })
+                excellent: await Resume.countDocuments({ userId, status: 'analyzed', 'analysisResult.score': { $gte: 80 } }),
+                good: await Resume.countDocuments({ userId, status: 'analyzed', 'analysisResult.score': { $gte: 60, $lt: 80 } }),
+                needsImprovement: await Resume.countDocuments({ userId, status: 'analyzed', 'analysisResult.score': { $lt: 60 } })
             }
         };
-
-        logger.info('Resume stats fetched', {
-            userId,
-            totalResumes,
-            requestId: req.headers['x-request-id']
-        });
 
         res.json({
             success: true,
@@ -1700,11 +1528,7 @@ app.get('/api/resumes/stats', authenticateUser, async (req, res) => {
             requestId: req.headers['x-request-id']
         });
     } catch (error) {
-        logger.error('Failed to fetch resume stats', {
-            error: error.message,
-            userId: req.user._id,
-            requestId: req.headers['x-request-id']
-        });
+        logger.error('Failed to fetch resume stats:', { error: error.message });
         res.status(500).json({
             success: false,
             error: 'Failed to fetch resume stats',
@@ -1713,40 +1537,23 @@ app.get('/api/resumes/stats', authenticateUser, async (req, res) => {
     }
 });
 
-// Get dashboard stats (for admin/overview)
 app.get('/api/dashboard/stats', authenticateUser, async (req, res) => {
     try {
         const userId = req.user._id;
-
-        // Get basic stats
         const totalResumes = await Resume.countDocuments({ userId });
-        const analyzedResumes = await Resume.countDocuments({
-            userId,
-            status: 'analyzed'
-        });
-        const publishedResumes = await Resume.countDocuments({
-            userId,
-            isPublic: true
-        });
+        const analyzedResumes = await Resume.countDocuments({ userId, status: 'analyzed' });
+        const publishedResumes = await Resume.countDocuments({ userId, isPublic: true });
 
-        // Get average score
         const scoreResult = await Resume.aggregate([
             { $match: { userId, status: 'analyzed', 'analysisResult.score': { $exists: true } } },
             { $group: { _id: null, avgScore: { $avg: '$analysisResult.score' } } }
         ]);
 
-        // Get storage usage (simulated)
         const storageResult = await Resume.aggregate([
             { $match: { userId } },
-            {
-                $group: {
-                    _id: null,
-                    totalSize: { $sum: { $ifNull: ['$fileSize', 1024] } }
-                }
-            }
+            { $group: { _id: null, totalSize: { $sum: { $ifNull: ['$fileSize', 1024] } } } }
         ]);
 
-        // Get recent resumes
         const recentResumes = await Resume.find({ userId })
             .sort({ createdAt: -1 })
             .limit(3)
@@ -1760,8 +1567,7 @@ app.get('/api/dashboard/stats', authenticateUser, async (req, res) => {
                 publishedResumes,
                 avgScore: scoreResult[0]?.avgScore ? Math.round(scoreResult[0].avgScore) : 0,
                 storageUsed: storageResult[0]?.totalSize ?
-                    `${Math.round(storageResult[0].totalSize / 1024 / 1024)} MB` :
-                    '0 MB'
+                    `${Math.round(storageResult[0].totalSize / 1024 / 1024)} MB` : '0 MB'
             },
             recentResumes: recentResumes.map(resume => ({
                 id: resume._id,
@@ -1777,26 +1583,14 @@ app.get('/api/dashboard/stats', authenticateUser, async (req, res) => {
             ]
         };
 
-        logger.info('Dashboard stats fetched', {
-            userId,
-            totalResumes,
-            requestId: req.headers['x-request-id']
-        });
-
         res.json({
             success: true,
             data: stats,
             requestId: req.headers['x-request-id']
         });
     } catch (error) {
-        logger.error('Failed to fetch dashboard stats', {
-            error: error.message,
-            userId: req.user._id,
-            requestId: req.headers['x-request-id']
-        });
-        // Return mock data for development
+        logger.error('Failed to fetch dashboard stats:', { error: error.message });
         if (NODE_ENV === 'development') {
-            logger.debug('Development: Returning mock dashboard stats');
             return res.json({
                 success: true,
                 data: {
@@ -1850,7 +1644,6 @@ app.get('/api/dashboard/stats', authenticateUser, async (req, res) => {
 // ======================
 // ADMIN ROUTES
 // ======================
-// Admin login
 app.post('/api/admin/auth/login', async (req, res) => {
     const { email, password } = req.body;
     const requestId = req.headers['x-request-id'];
@@ -1858,7 +1651,6 @@ app.post('/api/admin/auth/login', async (req, res) => {
     logger.info(`🔐 Admin login attempt: ${email}`, { requestId });
 
     try {
-        // Validation
         if (!email || !password) {
             return res.status(400).json({
                 success: false,
@@ -1867,33 +1659,24 @@ app.post('/api/admin/auth/login', async (req, res) => {
             });
         }
 
-        // Check admin credentials
         const ADMIN_EMAIL = process.env.ADMIN_DEFAULT_EMAIL || 'admin@resume.ai';
         const ADMIN_PASSWORD = process.env.ADMIN_DEFAULT_PASSWORD || 'admin123';
 
-        // In production, use bcrypt comparison
         let isValidPassword = false;
         if (email === ADMIN_EMAIL) {
             if (NODE_ENV === 'production') {
-                // Hash the provided password and compare with stored hash
-                const salt = await bcrypt.genSalt(12);
-                const hashedInput = await bcrypt.hash(password, salt);
-                // You should store hashed admin password in .env for production
                 const storedHash = process.env.ADMIN_HASHED_PASSWORD;
                 if (storedHash) {
                     isValidPassword = await bcrypt.compare(password, storedHash);
                 } else {
-                    // Fallback for development
                     isValidPassword = password === ADMIN_PASSWORD;
                 }
             } else {
-                // Development mode - direct comparison
                 isValidPassword = password === ADMIN_PASSWORD;
             }
         }
 
         if (email === ADMIN_EMAIL && isValidPassword) {
-            // Create or update admin user
             let adminUser = await User.findOne({ email: ADMIN_EMAIL });
             if (!adminUser) {
                 adminUser = new User({
@@ -1911,7 +1694,6 @@ app.post('/api/admin/auth/login', async (req, res) => {
                 await adminUser.save();
             }
 
-            // Generate admin JWT token
             const token = jwt.sign(
                 {
                     userId: adminUser._id,
@@ -1924,7 +1706,6 @@ app.post('/api/admin/auth/login', async (req, res) => {
                 { expiresIn: process.env.JWT_ADMIN_EXPIRE || '24h' }
             );
 
-            // Prepare admin response
             const adminResponse = adminUser.toObject();
             delete adminResponse.password;
 
@@ -1957,7 +1738,6 @@ app.post('/api/admin/auth/login', async (req, res) => {
     }
 });
 
-// Admin auth status
 app.get('/api/admin/auth/status', authenticateAdmin, (req, res) => {
     const userResponse = req.user.toObject();
     delete userResponse.password;
@@ -1969,16 +1749,12 @@ app.get('/api/admin/auth/status', authenticateAdmin, (req, res) => {
     });
 });
 
-// Admin dashboard stats
 app.get('/api/admin/dashboard/stats', authenticateAdmin, async (req, res) => {
     const { range = '7d' } = req.query;
     const requestId = req.headers['x-request-id'];
 
     try {
-        // Get user count
         const totalUsers = await User.countDocuments({ isActive: true });
-
-        // Mock data for development
         const stats = {
             totalUsers,
             totalResumes: Math.floor(Math.random() * 500) + 100,
@@ -2004,11 +1780,8 @@ app.get('/api/admin/dashboard/stats', authenticateAdmin, async (req, res) => {
     }
 });
 
-// Admin recent activity
 app.get('/api/admin/dashboard/recent-activity', authenticateAdmin, (req, res) => {
     const { limit = 10 } = req.query;
-
-    // Mock activity data
     const activities = [
         {
             id: 1,
@@ -2043,17 +1816,13 @@ app.get('/api/admin/dashboard/recent-activity', authenticateAdmin, (req, res) =>
     });
 });
 
-// Admin get users
 app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
     const { page = 1, limit = 10, search = '', role = 'all', status = 'all' } = req.query;
     const requestId = req.headers['x-request-id'];
 
     try {
-        // Build query
         const query = { isActive: status === 'active' ? true : status === 'inactive' ? false : { $exists: true } };
-        if (role !== 'all') {
-            query.role = role;
-        }
+        if (role !== 'all') query.role = role;
         if (search) {
             query.$or = [
                 { name: { $regex: search, $options: 'i' } },
@@ -2061,7 +1830,6 @@ app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
             ];
         }
 
-        // Get users with pagination
         const skip = (parseInt(page) - 1) * parseInt(limit);
         const users = await User.find(query)
             .select('-password')
@@ -2094,9 +1862,13 @@ app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
 });
 
 // ======================
-// AI ROUTES
+// ✅ AI ROUTES - FROM YOUR AI FOLDER STRUCTURE
 // ======================
 app.use('/api/ai', aiRoutes);
+logger.info('✅ AI routes loaded from /src/ai/ai.routes.js');
+
+app.use('/api/extract', resumeExtractionRoutes);
+logger.info('✅ Extraction routes loaded from /src/routes/resumeExtraction.routes.js');
 
 // ======================
 // SOCKET.IO HANDLERS
@@ -2107,20 +1879,12 @@ io.on('connection', (socket) => {
     socket.data.connectedAt = new Date();
     socket.data.userAgent = socket.handshake.headers['user-agent'];
 
-    // Resume analysis
     socket.on('resume:analyze', async (data) => {
         const jobId = `job-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-        logger.info(`📄 Resume analysis requested via WebSocket: ${jobId}`, {
-            clientId,
-            userId: data.userId,
-        });
+        logger.info(`📄 Resume analysis requested via WebSocket: ${jobId}`, { clientId, userId: data.userId });
 
-        socket.emit('resume:analysis:started', {
-            jobId,
-            timestamp: new Date().toISOString(),
-        });
+        socket.emit('resume:analysis:started', { jobId, timestamp: new Date().toISOString() });
 
-        // Simulate analysis progress
         let progress = 0;
         const steps = [
             { name: 'uploading', progress: 10 },
@@ -2179,10 +1943,7 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', (reason) => {
         const duration = new Date() - socket.data.connectedAt;
-        logger.info(`🔌 Socket.IO disconnected: ${clientId}`, {
-            reason,
-            duration: `${duration}ms`,
-        });
+        logger.info(`🔌 Socket.IO disconnected: ${clientId}`, { reason, duration: `${duration}ms` });
     });
 });
 
@@ -2226,15 +1987,9 @@ app.use((err, req, res, next) => {
 // ======================
 const initializeApplication = async () => {
     try {
-        // Create required directories
         await createRequiredDirectories();
-
-        // Display startup banner
         displayStartupBanner();
-
-        // Connect to database
         await connectAppDB();
-
         logger.info('✅ Application initialized successfully');
 
         return {
@@ -2250,7 +2005,6 @@ const initializeApplication = async () => {
     }
 };
 
-// Helper functions
 const createRequiredDirectories = async () => {
     const directories = [
         'logs',
@@ -2274,9 +2028,9 @@ const createRequiredDirectories = async () => {
 const displayStartupBanner = () => {
     const banner = `
     ╔══════════════════════════════════════════════════════════════╗
-    ║ AI RESUME BUILDER - BACKEND ║
-    ║ Version ${process.env.API_VERSION || '2.0.0'} ║
-    ║ Environment: ${NODE_ENV.toUpperCase()} ║
+    ║           AI RESUME BUILDER & ANALYZER - BACKEND            ║
+    ║                    Version ${process.env.API_VERSION || '2.0.0'}                     ║
+    ║                   Environment: ${NODE_ENV.toUpperCase()}                    ║
     ╚══════════════════════════════════════════════════════════════╝
     `;
     console.log('\x1b[36m%s\x1b[0m', banner);
@@ -2289,6 +2043,7 @@ const displayStartupBanner = () => {
         nodeVersion: process.version,
         pid: process.pid,
         googleOAuth: process.env.GOOGLE_CLIENT_ID ? 'Enabled' : 'Disabled',
+        aiEnabled: !!process.env.OPENAI_API_KEY,
     });
 };
 
@@ -2296,10 +2051,13 @@ const displayStartupBanner = () => {
 if (import.meta.url === `file://${process.argv[1]}`) {
     initializeApplication().then(({ httpServer }) => {
         httpServer.listen(PORT, HOST, () => {
+            console.log('\x1b[32m%s\x1b[0m', '✅'.repeat(50));
             logger.info(`✅ Server running on http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
             logger.info(`🌐 Frontend URL: ${FRONTEND_URL}`);
             logger.info(`🔗 Health check: http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}/health`);
-            logger.info(`🔐 Google OAuth: ${process.env.GOOGLE_CLIENT_ID ? 'Configured' : 'Not configured'}`);
+            logger.info(`🤖 AI routes: http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}/api/ai`);
+            logger.info(`🔐 Google OAuth: ${process.env.GOOGLE_CLIENT_ID ? '✅ Configured' : '❌ Not configured'}`);
+            console.log('\x1b[32m%s\x1b[0m', '✅'.repeat(50));
         });
     }).catch((error) => {
         logger.error('💥 Failed to start server:', error);
@@ -2307,7 +2065,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     });
 }
 
-// Export - Only export what's needed for server.js
+// ✅ EXPORTS - Clean and minimal
 export {
     initializeApplication,
     app,
@@ -2316,6 +2074,7 @@ export {
     logger,
     mongoose,
     User,
+    Resume,
     authenticateUser,
     authenticateAdmin,
     googleClient

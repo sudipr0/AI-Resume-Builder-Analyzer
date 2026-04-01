@@ -199,4 +199,4 @@ const DashboardSidebar = ({
   );
 };
 
-export default DashboardSidebar;
+export default React.memo(DashboardSidebar);

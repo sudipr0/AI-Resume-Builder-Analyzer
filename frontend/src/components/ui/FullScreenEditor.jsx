@@ -433,4 +433,4 @@ FullScreenEditor.defaultProps = {
 };
 
 // Make sure this is a default export
-export default FullScreenEditor;
+export default React.memo(FullScreenEditor);

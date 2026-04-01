@@ -45,4 +45,4 @@ const AIPanel = ({ resume, jobDescription, onResumeUpdate }) => {
     );
 };
 
-export default AIPanel;
+export default React.memo(AIPanel);

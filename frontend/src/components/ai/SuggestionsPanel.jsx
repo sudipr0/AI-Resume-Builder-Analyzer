@@ -10,4 +10,4 @@ const SuggestionsPanel = ({ suggestions }) => {
     );
 };
 
-export default SuggestionsPanel;
+export default React.memo(SuggestionsPanel);

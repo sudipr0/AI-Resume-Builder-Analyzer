@@ -1,162 +1,71 @@
-// hooks/useSectionNavigation.jsx
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+// src/hooks/useSectionNavigation.jsx
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
 /**
  * Hook for managing section navigation in the builder
- * @param {Array} sections - Array of section definitions
- * @param {string} activeSection - Currently active section ID
- * @param {Function} setActiveSection - Function to set active section
+ * Simplified version that works with your Builder.jsx
  * @param {Object} options - Configuration options
  * @returns {Object} Navigation utilities and state
  */
-export const useSectionNavigation = (sections, activeSection, setActiveSection, options = {}) => {
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  // Default options
-  const {
-    validateBeforeNavigate = true,
-    persistInUrl = true,
-    urlParamName = 'section',
-    allowSkip = false,
-    onBeforeNavigate = null,
-    onAfterNavigate = null
-  } = options;
-
-  // State
-  const [navigationHistory, setNavigationHistory] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [canGoBack, setCanGoBack] = useState(false);
-  const [canGoForward, setCanGoForward] = useState(false);
+export const useSectionNavigation = ({
+  currentStep,
+  totalSteps,
+  onNavigate,
+  validateBeforeNavigate = true,
+  autoSave = true
+} = {}) => {
   const [isNavigating, setIsNavigating] = useState(false);
+  const [navigationHistory, setNavigationHistory] = useState([]);
+  const navigationInProgress = useRef(false);
 
-  // Filter visible sections
-  const visibleSections = useMemo(() => {
-    return sections.filter(section => section.visible !== false);
-  }, [sections]);
-
-  // Calculate current index
+  // Update history when step changes
   useEffect(() => {
-    const index = visibleSections.findIndex(s => s.id === activeSection);
-    setCurrentIndex(index >= 0 ? index : 0);
+    if (currentStep !== undefined && !navigationInProgress.current) {
+      setNavigationHistory(prev => {
+        if (prev.length === 0 || prev[prev.length - 1] !== currentStep) {
+          return [...prev, currentStep];
+        }
+        return prev;
+      });
+    }
+  }, [currentStep]);
 
-    // Update navigation history
-    setNavigationHistory(prev => {
-      if (prev.length === 0 || prev[prev.length - 1] !== activeSection) {
-        return [...prev, activeSection];
-      }
-      return prev;
-    });
-  }, [activeSection, visibleSections]);
-
-  // Update navigation capabilities
-  useEffect(() => {
-    setCanGoBack(currentIndex > 0);
-    setCanGoForward(currentIndex < visibleSections.length - 1);
-  }, [currentIndex, visibleSections.length]);
-
-  // Sync with URL
-  useEffect(() => {
-    if (!persistInUrl) {
-      return;
+  // Navigation function
+  const navigateToStep = useCallback(async (newStep) => {
+    // Prevent multiple simultaneous navigations
+    if (isNavigating || navigationInProgress.current) {
+      console.log('⏳ Navigation already in progress, skipping');
+      return false;
     }
 
-    const params = new URLSearchParams(location.search);
-    const urlSection = params.get(urlParamName);
-
-    if (urlSection && urlSection !== activeSection) {
-      const isValidSection = visibleSections.some(s => s.id === urlSection);
-      if (isValidSection) {
-        setActiveSection(urlSection);
-      }
-    }
-  }, [location.search, persistInUrl, urlParamName, visibleSections, activeSection, setActiveSection]);
-
-  // Update URL when section changes
-  useEffect(() => {
-    if (!persistInUrl) {
-      return;
-    }
-
-    const params = new URLSearchParams(location.search);
-    const currentParam = params.get(urlParamName);
-
-    if (currentParam !== activeSection) {
-      params.set(urlParamName, activeSection);
-      navigate(`${location.pathname}?${params.toString()}`, { replace: true });
-    }
-  }, [activeSection, persistInUrl, urlParamName, location, navigate]);
-
-  // Validate if navigation to a section is allowed
-  const validateNavigation = useCallback((fromSection, toSection) => {
-    if (!validateBeforeNavigate) {
+    // Don't navigate if already on that step
+    if (newStep === currentStep) {
       return true;
     }
 
-    // Skip validation for optional sections
-    const fromSectionData = visibleSections.find(s => s.id === fromSection);
-    const toSectionData = visibleSections.find(s => s.id === toSection);
-
-    if (!fromSectionData || !toSectionData) {
-      return true;
-    }
-
-    // Check if skipping is allowed
-    if (!allowSkip && toSectionData.required) {
-      // Check if all previous required sections are completed
-      const sectionIndex = visibleSections.findIndex(s => s.id === toSection);
-      const previousSections = visibleSections.slice(0, sectionIndex);
-      const incompleteRequired = previousSections.filter(s =>
-        s.required && s.id !== toSection
-      );
-
-      if (incompleteRequired.length > 0) {
-        return {
-          allowed: false,
-          reason: `Please complete ${incompleteRequired[0].label} first`,
-          incompleteSections: incompleteRequired.map(s => s.id)
-        };
-      }
-    }
-
-    return { allowed: true };
-  }, [validateBeforeNavigate, allowSkip, visibleSections]);
-
-  // Navigate to a specific section
-  const goToSection = useCallback(async (sectionId) => {
-    if (sectionId === activeSection || isNavigating) {
-      return;
-    }
-
-    // Validate navigation
-    const validation = validateNavigation(activeSection, sectionId);
-    if (!validation.allowed) {
-      console.warn(`Navigation blocked: ${validation.reason}`);
+    // Validate step range
+    if (newStep < 0 || newStep >= totalSteps) {
+      console.warn('Invalid step index:', newStep);
       return false;
     }
 
     setIsNavigating(true);
+    navigationInProgress.current = true;
 
     try {
-      // Call before navigation hook
-      if (onBeforeNavigate) {
-        const shouldContinue = await onBeforeNavigate(activeSection, sectionId);
-        if (shouldContinue === false) {
-          setIsNavigating(false);
+      console.log(`🔄 Navigating from step ${currentStep} to ${newStep}`);
+
+      // Call the navigation handler
+      if (onNavigate) {
+        const result = await onNavigate(newStep);
+        if (result === false) {
+          console.log('⛔ Navigation cancelled by handler');
           return false;
         }
       }
 
-      // Update active section
-      setActiveSection(sectionId);
-
-      // Call after navigation hook
-      if (onAfterNavigate) {
-        setTimeout(() => {
-          onAfterNavigate(sectionId, activeSection);
-        }, 0);
-      }
+      // Add to history
+      setNavigationHistory(prev => [...prev, newStep]);
 
       return true;
     } catch (error) {
@@ -164,255 +73,125 @@ export const useSectionNavigation = (sections, activeSection, setActiveSection, 
       return false;
     } finally {
       setIsNavigating(false);
+      navigationInProgress.current = false;
     }
-  }, [activeSection, isNavigating, validateNavigation, setActiveSection, onBeforeNavigate, onAfterNavigate]);
+  }, [currentStep, totalSteps, onNavigate, isNavigating]);
 
-  // Navigate to next section
-  const goToNext = useCallback(async () => {
-    if (currentIndex >= visibleSections.length - 1) {
-      return false;
-    }
-
-    const nextSection = visibleSections[currentIndex + 1];
-    return await goToSection(nextSection.id);
-  }, [currentIndex, visibleSections, goToSection]);
-
-  // Navigate to previous section
-  const goToPrev = useCallback(async () => {
-    if (currentIndex <= 0) {
-      return false;
-    }
-
-    const prevSection = visibleSections[currentIndex - 1];
-    return await goToSection(prevSection.id);
-  }, [currentIndex, visibleSections, goToSection]);
-
-  // Navigate with direction
-  const navigateToSection = useCallback(async (direction) => {
-    if (direction === 'next') {
-      return await goToNext();
-    } else if (direction === 'prev') {
-      return await goToPrev();
+  // Go to next step
+  const goToNextStep = useCallback(async () => {
+    if (currentStep < totalSteps - 1) {
+      return await navigateToStep(currentStep + 1);
     }
     return false;
-  }, [goToNext, goToPrev]);
+  }, [currentStep, totalSteps, navigateToStep]);
 
-  // Jump to a specific section by index
-  const jumpToIndex = useCallback(async (index) => {
-    if (index < 0 || index >= visibleSections.length) {
-      return false;
+  // Go to previous step
+  const goToPrevStep = useCallback(async () => {
+    if (currentStep > 0) {
+      return await navigateToStep(currentStep - 1);
     }
+    return false;
+  }, [currentStep, navigateToStep]);
 
-    const targetSection = visibleSections[index];
-    return await goToSection(targetSection.id);
-  }, [visibleSections, goToSection]);
-
-  // Skip to a section (bypass validation)
-  const skipToSection = useCallback(async (sectionId) => {
-    const originalValidate = validateBeforeNavigate;
-    // Temporarily disable validation
-    const success = await goToSection(sectionId);
-    return success;
-  }, [goToSection, validateBeforeNavigate]);
-
-  // Get section by ID
-  const getSection = useCallback((sectionId) => {
-    return visibleSections.find(s => s.id === sectionId);
-  }, [visibleSections]);
-
-  // Get neighboring sections
-  const getNeighbors = useCallback(() => {
-    return {
-      previous: currentIndex > 0 ? visibleSections[currentIndex - 1] : null,
-      current: visibleSections[currentIndex],
-      next: currentIndex < visibleSections.length - 1 ? visibleSections[currentIndex + 1] : null
-    };
-  }, [currentIndex, visibleSections]);
-
-  // Calculate progress percentage
-  const getProgress = useCallback(() => {
-    if (visibleSections.length === 0) {
-      return 0;
+  // Go to specific step
+  const goToStep = useCallback(async (stepIndex) => {
+    if (stepIndex >= 0 && stepIndex < totalSteps) {
+      return await navigateToStep(stepIndex);
     }
-    return Math.round(((currentIndex + 1) / visibleSections.length) * 100);
-  }, [currentIndex, visibleSections.length]);
+    return false;
+  }, [totalSteps, navigateToStep]);
 
-  // Get section indices for navigation
-  const getSectionIndices = useCallback(() => {
-    return {
-      current: currentIndex,
-      total: visibleSections.length,
-      isFirst: currentIndex === 0,
-      isLast: currentIndex === visibleSections.length - 1
-    };
-  }, [currentIndex, visibleSections.length]);
-
-  // Check if a section is accessible (not blocked by validation)
-  const isSectionAccessible = useCallback((sectionId) => {
-    if (!validateBeforeNavigate) {
-      return true;
-    }
-
-    const validation = validateNavigation(activeSection, sectionId);
-    return validation.allowed;
-  }, [activeSection, validateBeforeNavigate, validateNavigation]);
-
-  // Get accessible sections from current position
-  const getAccessibleSections = useCallback(() => {
-    return visibleSections.filter(section =>
-      isSectionAccessible(section.id)
-    );
-  }, [visibleSections, isSectionAccessible]);
-
-  // Go back in navigation history
-  const goBackInHistory = useCallback(() => {
+  // Go back in history
+  const goBackInHistory = useCallback(async () => {
     if (navigationHistory.length <= 1) {
       return false;
     }
+    const previousStep = navigationHistory[navigationHistory.length - 2];
+    return await goToStep(previousStep);
+  }, [navigationHistory, goToStep]);
 
-    const previousSection = navigationHistory[navigationHistory.length - 2];
-    return goToSection(previousSection);
-  }, [navigationHistory, goToSection]);
+  // Check if can go to next
+  const canGoNext = useMemo(() => {
+    return currentStep < totalSteps - 1 && !isNavigating;
+  }, [currentStep, totalSteps, isNavigating]);
 
-  // Clear navigation history
-  const clearHistory = useCallback(() => {
-    setNavigationHistory([activeSection]);
-  }, [activeSection]);
+  // Check if can go to previous
+  const canGoPrev = useMemo(() => {
+    return currentStep > 0 && !isNavigating;
+  }, [currentStep, isNavigating]);
 
-  // Bulk navigation for initialization
-  const initializeNavigation = useCallback((initialSectionId = null) => {
-    const initialSection = initialSectionId ||
-            (persistInUrl ? new URLSearchParams(location.search).get(urlParamName) : null) ||
-            visibleSections[0]?.id;
+  // Check if first step
+  const isFirstStep = useMemo(() => {
+    return currentStep === 0;
+  }, [currentStep]);
 
-    if (initialSection) {
-      setActiveSection(initialSection);
-      clearHistory();
-    }
-  }, [persistInUrl, location.search, urlParamName, visibleSections, setActiveSection, clearHistory]);
+  // Check if last step
+  const isLastStep = useMemo(() => {
+    return currentStep === totalSteps - 1;
+  }, [currentStep, totalSteps]);
 
-  // Keyboard navigation handler
-  const handleKeyboardNavigation = useCallback((event, options = {}) => {
-    const {
-      allowArrowKeys = true,
-      allowTab = false,
-      allowEnter = false,
-      disabled = false
-    } = options;
+  // Get progress percentage
+  const progressPercentage = useMemo(() => {
+    if (totalSteps === 0) return 0;
+    return Math.round(((currentStep + 1) / totalSteps) * 100);
+  }, [currentStep, totalSteps]);
 
-    if (disabled || isNavigating) {
-      return;
-    }
+  // Get step status
+  const getStepStatus = useCallback((stepIndex) => {
+    if (stepIndex < currentStep) return 'completed';
+    if (stepIndex === currentStep) return 'current';
+    return 'upcoming';
+  }, [currentStep]);
 
-    // Prevent default only for keys we handle
-    let shouldPreventDefault = false;
+  // Check if a step is accessible
+  const isStepAccessible = useCallback((stepIndex) => {
+    if (!validateBeforeNavigate) return true;
+    // Can only navigate to steps that are not too far ahead
+    // This is a simple implementation - you can make it more sophisticated
+    return stepIndex <= currentStep + 1;
+  }, [currentStep, validateBeforeNavigate]);
 
-    if (allowArrowKeys) {
-      if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
-        goToNext();
-        shouldPreventDefault = true;
-      } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-        goToPrev();
-        shouldPreventDefault = true;
-      }
-    }
-
-    if (allowTab && event.key === 'Tab') {
-      if (event.shiftKey) {
-        goToPrev();
-      } else {
-        goToNext();
-      }
-      shouldPreventDefault = true;
-    }
-
-    if (allowEnter && event.key === 'Enter' && event.ctrlKey) {
-      goToNext();
-      shouldPreventDefault = true;
-    }
-
-    if (shouldPreventDefault) {
-      event.preventDefault();
-    }
-  }, [goToNext, goToPrev, isNavigating]);
-
-  // Get section trail (breadcrumbs)
-  const getSectionTrail = useCallback(() => {
-    return visibleSections.slice(0, currentIndex + 1).map(section => ({
-      id: section.id,
-      label: section.label,
-      completed: navigationHistory.includes(section.id)
-    }));
-  }, [visibleSections, currentIndex, navigationHistory]);
-
-  // Check if navigation is in progress
-  const getNavigationStatus = useCallback(() => ({
-    isNavigating,
-    canGoBack,
-    canGoForward,
-    currentSection: visibleSections[currentIndex],
-    progress: getProgress()
-  }), [isNavigating, canGoBack, canGoForward, visibleSections, currentIndex, getProgress]);
+  // Reset navigation
+  const resetNavigation = useCallback(() => {
+    setNavigationHistory([]);
+    setIsNavigating(false);
+    navigationInProgress.current = false;
+  }, []);
 
   return {
     // State
-    currentIndex,
-    visibleSections,
-    currentSection: visibleSections[currentIndex],
+    currentStep,
     isNavigating,
+    navigationHistory,
 
     // Navigation functions
-    navigateToSection,
-    goToSection,
-    goToNext,
-    goToPrev,
-    jumpToIndex,
-    skipToSection,
+    goToNextStep,
+    goToPrevStep,
+    goToStep,
     goBackInHistory,
+    navigateToStep,
 
-    // Validation and accessibility
-    validateNavigation,
-    isSectionAccessible,
-    getAccessibleSections,
+    // Status flags
+    canGoNext,
+    canGoPrev,
+    isFirstStep,
+    isLastStep,
 
-    // Progress and information
-    getProgress,
-    getSection,
-    getNeighbors,
-    getSectionIndices,
-    getSectionTrail,
+    // Progress
+    progressPercentage,
+    totalSteps,
 
-    // History management
-    navigationHistory,
-    clearHistory,
+    // Utilities
+    getStepStatus,
+    isStepAccessible,
+    resetNavigation,
 
-    // Initialization
-    initializeNavigation,
-
-    // Event handlers
-    handleKeyboardNavigation,
-
-    // Status
-    getNavigationStatus,
-
-    // Convenience properties
-    canGoBack,
-    canGoForward,
-    isFirst: currentIndex === 0,
-    isLast: currentIndex === visibleSections.length - 1,
-    totalSections: visibleSections.length,
-
-    // Debug info
-    debug: () => ({
-      activeSection,
-      currentIndex,
-      totalSections: visibleSections.length,
-      navigationHistory,
-      canGoBack,
-      canGoForward,
-      accessibleSections: getAccessibleSections().map(s => s.id),
-      progress: getProgress()
-    })
+    // Convenience (for backward compatibility)
+    canGoBack: canGoPrev,
+    canGoForward: canGoNext,
+    isFirst: isFirstStep,
+    isLast: isLastStep,
+    progress: progressPercentage
   };
 };
 

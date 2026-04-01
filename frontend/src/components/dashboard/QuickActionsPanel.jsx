@@ -56,4 +56,4 @@ const QuickActionsPanelIcons = ({ darkMode = false }) => {
   );
 };
 
-export default QuickActionsPanelIcons;
+export default React.memo(QuickActionsPanelIcons);

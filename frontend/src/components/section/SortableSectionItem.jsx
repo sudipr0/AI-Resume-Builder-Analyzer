@@ -85,4 +85,4 @@ const SortableSectionItem = ({ id, section, Icon, onToggleVisibility }) => {
   );
 };
 
-export default SortableSectionItem;
+export default React.memo(SortableSectionItem);

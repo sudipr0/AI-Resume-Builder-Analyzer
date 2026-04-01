@@ -246,4 +246,4 @@ const UploadResume = () => {
   );
 };
 
-export default UploadResume;
+export default React.memo(UploadResume);

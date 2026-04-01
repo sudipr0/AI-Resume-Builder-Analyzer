@@ -466,4 +466,4 @@ const ReferencesBuilder = ({
   );
 };
 
-export default React.memo(ReferencesBuilder);
+export default React.memo(React.memo(ReferencesBuilder));

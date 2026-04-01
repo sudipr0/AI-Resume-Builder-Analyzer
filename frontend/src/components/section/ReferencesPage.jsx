@@ -782,4 +782,4 @@ const LinkedinIcon = ({ className }) => (
   </svg>
 );
 
-export default ReferencesPage;
+export default React.memo(ReferencesPage);

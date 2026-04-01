@@ -1,825 +1,658 @@
-// src/services/api.js - PRODUCTION READY WITH ALL FIXES
+// src/services/api.js - COMPLETE FIXED VERSION WITH BETTER ERROR HANDLING
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 
 // ==================== CONFIGURATION ====================
 const API_BASE_URL = (() => {
   let url = import.meta.env?.VITE_API_URL || 'http://localhost:5001';
-  // Ensure base URL doesn't end with /api (we'll add it per request)
   url = url.replace(/\/api\/?$/, '');
   url = url.endsWith('/') ? url.slice(0, -1) : url;
-  console.log('🚀 API Base URL configured:', url);
+  console.log('🚀 API Base URL:', url);
   return url;
 })();
 
 const ENV = import.meta.env.MODE || 'development';
-console.log(`🌐 Running in ${ENV.toUpperCase()} mode`);
 
-// OAuth Configuration
-const OAUTH_CONFIG = {
-  google: {
-    clientId: import.meta.env?.VITE_GOOGLE_CLIENT_ID || '',
-    enabled: !!(import.meta.env?.VITE_GOOGLE_CLIENT_ID),
-    authUrl: `${API_BASE_URL}/auth/google`,
-    apiAuthUrl: `${API_BASE_URL}/api/auth/google`,
-    callbackUrl: `${API_BASE_URL}/api/auth/google/callback`,
-    scopes: ['profile', 'email'],
-    redirectParam: 'redirect_uri'
-  }
-};
-
-// ==================== LOGGER SERVICE ====================
+// ==================== ADVANCED LOGGER ====================
 const logger = {
-  info: (message, data = null) => {
-    if (ENV === 'development') {
-      console.log(`📘 [API] ${message}`, data || '');
+  info: (msg, data) => ENV === 'development' && console.log(`📘 ${msg}`, data || ''),
+  warn: (msg, data) => console.warn(`⚠️ ${msg}`, data || ''),
+  error: (msg, err) => console.error(`❌ ${msg}`, err || ''),
+  success: (msg, data) => console.log(`✅ ${msg}`, data || ''),
+  api: (msg, data) => ENV === 'development' && console.log(`🌐 ${msg}`, data || ''),
+  debug: (msg, data) => {
+    if (ENV === 'development' && import.meta.env.VITE_DEBUG === 'true') {
+      console.debug(`🔍 ${msg}`, data || '');
     }
+  }
+};
+
+// ==================== REQUEST DEDUPLICATION ====================
+const pendingRequests = new Map();
+const requestCache = new Map();
+const CACHE_TTL = 5000; // 5 seconds
+
+const dedupRequest = async (key, fn, skipCache = false) => {
+  if (!skipCache && requestCache.has(key)) {
+    const { data, timestamp } = requestCache.get(key);
+    if (Date.now() - timestamp < CACHE_TTL) {
+      logger.debug(`📦 Cache hit: ${key}`);
+      return data;
+    }
+    requestCache.delete(key);
+  }
+
+  if (pendingRequests.has(key)) {
+    logger.debug(`⏭️ Dedup: ${key}`);
+    return pendingRequests.get(key);
+  }
+
+  const promise = fn().then(data => {
+    requestCache.set(key, { data, timestamp: Date.now() });
+    return data;
+  }).finally(() => {
+    pendingRequests.delete(key);
+  });
+
+  pendingRequests.set(key, promise);
+  return promise;
+};
+
+// ==================== FIXED TOKEN MANAGEMENT ====================
+const tokenManager = {
+  getToken: () => localStorage.getItem('token'),
+
+  setToken: (token) => {
+    if (token) localStorage.setItem('token', token);
   },
-  warn: (message, data = null) => {
-    console.warn(`⚠️ [API] ${message}`, data || '');
+
+  removeToken: () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user_data');
   },
-  error: (message, error = null) => {
-    console.error(`❌ [API] ${message}`, error || '');
-  },
-  debug: (message, data = null) => {
-    if (import.meta.env.VITE_DEBUG === 'true') {
-      console.debug(`🔍 [API] ${message}`, data || '');
-    }
-  }
-};
 
-// ==================== UTILITY FUNCTIONS ====================
-const getAuthToken = () => {
-  const token = localStorage.getItem('token');
-  logger.debug('Auth token check', { hasToken: !!token });
-  return token;
-};
+  isValid: () => {
+    const token = localStorage.getItem('token');
+    if (!token) return false;
 
-const getCurrentUser = () => {
-  try {
-    const userData = localStorage.getItem('user_data');
-    if (!userData) {
-      logger.warn('No user data found in localStorage');
-      return null;
-    }
-
-    const user = JSON.parse(userData);
-    logger.info('Current user loaded', { id: user._id, email: user.email });
-    return {
-      _id: user._id || user.id,
-      id: user._id || user.id,
-      email: user.email || '',
-      name: user.name || user.username || '',
-      role: user.role || 'user',
-      avatar: user.avatar || '',
-      authProvider: user.authProvider || 'local'
-    };
-  } catch (error) {
-    logger.error('Error parsing user data', error);
-    return null;
-  }
-};
-
-// CENTRALIZED USER ID LOGIC WITH DEMO FALLBACK
-const getUserId = () => {
-  const user = getCurrentUser();
-  if (user?._id) {
-    logger.debug('User ID from current user', { userId: user._id });
-    return user._id;
-  }
-
-  // Try localStorage directly
-  try {
-    const userData = JSON.parse(localStorage.getItem('user_data') || '{}');
-    if (userData._id) {
-      logger.debug('User ID from localStorage', { userId: userData._id });
-      return userData._id;
-    }
-  } catch (error) {
-    // Ignore parse errors
-  }
-
-  // Development fallback to demo user
-  if (ENV === 'development') {
-    const demoId = localStorage.getItem('demo_user_id') || `demo-${Date.now().toString().slice(-8)}`;
-    localStorage.setItem('demo_user_id', demoId);
-    logger.warn('Using demo user ID for development', { demoId });
-    return demoId;
-  }
-
-  logger.warn('No user ID found');
-  return null;
-};
-
-// REQUEST RETRY WITH EXPONENTIAL BACKOFF
-const withRetry = async (fn, retries = 2, baseDelay = 300) => {
-  for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      return await fn();
-    } catch (error) {
-      const isLastAttempt = attempt === retries;
-      const isNetworkError = !error.response;
-      const isServerError = error.response?.status >= 500;
-
-      // Only retry on network or server errors, not auth or client errors
-      if (isLastAttempt || (!isNetworkError && !isServerError)) {
-        throw error;
+      // Check if token has valid structure (header.payload.signature)
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        logger.warn('Token has invalid structure');
+        // Don't remove token here - let the interceptor handle it
+        return false;
       }
 
-      const delay = baseDelay * Math.pow(2, attempt);
-      logger.warn(`Request failed (attempt ${attempt + 1}/${retries + 1}), retrying in ${delay}ms`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      // Try to decode payload
+      const payload = JSON.parse(atob(parts[1]));
+
+      if (!payload.exp) {
+        logger.debug('Token has no expiration - treating as valid');
+        return true;
+      }
+
+      const expirationTime = payload.exp * 1000;
+      const currentTime = Date.now();
+      const tolerance = 5 * 60 * 1000; // 5 minutes tolerance
+
+      return (expirationTime + tolerance) > currentTime;
+    } catch (error) {
+      logger.warn('Token validation error:', error.message);
+      return false;
     }
+  }
+};
+
+// ==================== USER MANAGEMENT ====================
+const userManager = {
+  getCurrentUser: () => {
+    try {
+      const data = localStorage.getItem('user_data');
+      if (!data) return null;
+      return JSON.parse(data);
+    } catch (error) {
+      logger.error('Error parsing user data', error);
+      return null;
+    }
+  },
+
+  getUserId: () => {
+    const user = userManager.getCurrentUser();
+    return user?._id || user?.id || null;
+  },
+
+  isAuthenticated: () => {
+    return !!(tokenManager.getToken() && userManager.getCurrentUser());
   }
 };
 
 // ==================== AXIOS INSTANCE ====================
-const createApiInstance = () => {
-  const instance = axios.create({
-    baseURL: API_BASE_URL,
-    timeout: 30000,
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest'
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  }
+});
+
+// ==================== REQUEST INTERCEPTOR ====================
+api.interceptors.request.use(
+  (config) => {
+    const token = tokenManager.getToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
-  });
 
-  // REQUEST INTERCEPTOR
-  instance.interceptors.request.use(
-    (config) => {
-      const token = getAuthToken();
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-        logger.debug('Auth token added to request', {
-          endpoint: config.url,
-          method: config.method
-        });
+    if (config.url && !config.url.startsWith('http')) {
+      if (!config.url.startsWith('/api') && !config.url.startsWith('/health')) {
+        config.url = `/api${config.url}`;
       }
+    }
 
-      // Ensure API prefix for all endpoints except health check
-      if (config.url && !config.url.startsWith('http')) {
-        // Add /api prefix for all backend routes
-        if (!config.url.startsWith('/api')) {
-          config.url = `/api${config.url.startsWith('/') ? '' : '/'}${config.url}`;
-        }
+    logger.api(`${config.method?.toUpperCase()} ${config.url}`, {
+      hasToken: !!token,
+      tokenValid: token ? tokenManager.isValid() : false
+    });
+
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// ==================== FIXED RESPONSE INTERCEPTOR ====================
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const { response, config } = error;
+    const url = config?.url || 'unknown';
+
+    if (!response) {
+      logger.error('Network error', { url, error: error.message });
+      if (!url.includes('/health')) {
+        toast.error('Network error. Please check your connection.');
       }
-
-      // Log request in development
-      if (ENV === 'development') {
-        const logData = {
-          method: config.method?.toUpperCase(),
-          url: config.url,
-          baseURL: config.baseURL,
-          fullURL: `${config.baseURL}${config.url}`,
-          headers: { ...config.headers, Authorization: '***' }
-        };
-
-        if (config.data && Object.keys(config.data).length > 0) {
-          logData.data = config.data;
-        }
-
-        logger.info('Outgoing Request', logData);
-      }
-
-      return config;
-    },
-    (error) => {
-      logger.error('Request interceptor error', error);
       return Promise.reject(error);
     }
-  );
 
-  // RESPONSE INTERCEPTOR WITH ENHANCED ERROR HANDLING
-  instance.interceptors.response.use(
-    (response) => {
-      if (ENV === 'development') {
-        logger.info(`Response ${response.status}`, {
-          url: response.config.url,
-          method: response.config.method,
-          data: response.data
-        });
-      }
-      return response;
-    },
-    (error) => {
-      const { response, config } = error;
-      const url = config?.url || 'unknown';
+    const { status, data } = response;
 
-      // Network error (no response)
-      if (!response) {
-        logger.error('Network error - Cannot reach server', {
-          url,
-          error: error.message
-        });
+    if (status === 401) {
+      logger.warn('Authentication failed', { url });
 
-        // Only show toast for critical endpoints or first occurrence
-        if (!url.includes('/health')) {
-          toast.error('Cannot connect to server. Please check your internet connection.');
-        }
-
+      if (url.includes('/auth/')) {
+        logger.info('Auth endpoint 401 - not clearing token');
         return Promise.reject(error);
       }
 
-      const { status, data } = response;
-
-      // ENHANCED 404 HANDLING WITH SPECIFIC MESSAGES
-      if (status === 404) {
-        logger.warn(`404 Not Found: ${url}`);
-
-        // Specific handling for different endpoints
-        if (url.includes('/resumes/user/')) {
-          logger.info('User resumes endpoint returned 404 - likely no resumes yet');
-          // Silent - we'll handle this with fallback logic
-        } else if (url.includes('/dashboard/stats')) {
-          logger.info('Dashboard stats endpoint missing - using fallback calculation');
-          // Silent - we have fallback logic
-        } else if (url.includes('/api/')) {
-          // Generic API 404 - FIXED: Use console.warn instead of toast.warn
-          console.warn('⚠️ API endpoint not found:', url);
-          // Don't show toast for 404 during development to reduce noise
-          if (ENV !== 'development') {
-            toast('Some features may be temporarily unavailable.', {
-              icon: '⚠️',
-              duration: 4000
-            });
-          }
-        }
+      if (url.includes('/resumes') || url.includes('/dashboard')) {
+        logger.info('Data endpoint 401 - may be normal for new user');
+        return Promise.reject(error);
       }
 
-      // Auth errors
-      else if (status === 401) {
-        logger.warn('Authentication failed - clearing session');
-        localStorage.removeItem('token');
-        localStorage.removeItem('user_data');
+      logger.warn('Clearing token due to 401 on protected endpoint');
+      tokenManager.removeToken();
 
-        // Only redirect if not on auth pages
-        const isAuthPage = window.location.pathname.includes('/login') ||
-          window.location.pathname.includes('/register') ||
-          window.location.pathname.includes('/auth/callback');
+      const isAuthPage = window.location.pathname.includes('/login') ||
+        window.location.pathname.includes('/register');
 
-        if (!isAuthPage) {
-          toast.error('Session expired. Please login again.');
-          setTimeout(() => {
-            window.location.href = '/login';
-          }, 1500);
-        }
+      if (!isAuthPage) {
+        toast.error('Session expired. Please login again.');
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1500);
       }
+    }
 
-      // Server errors
-      else if (status >= 500) {
-        logger.error(`Server error ${status}: ${url}`, data);
+    if (status === 400) {
+      logger.error('Bad request:', { url, data });
+      // Log the full error for debugging
+      console.error('🔍 Server validation error:', data);
+    }
+
+    if (status === 403) {
+      logger.error('Access forbidden:', { url });
+      toast.error('You don\'t have permission to perform this action.');
+    }
+
+    if (status === 404) {
+      logger.warn('Resource not found:', url);
+    }
+
+    if (status === 500) {
+      logger.error('Server error:', { url, data });
+      if (!url.includes('/health')) {
         toast.error('Server error. Please try again later.');
       }
-
-      // Client errors (400-499, excluding 401 & 404)
-      else if (status >= 400) {
-        logger.warn(`Client error ${status}: ${url}`, data);
-
-        // Show user-friendly error message
-        const errorMessage = data?.error ||
-          data?.message ||
-          data?.errors?.[0]?.msg ||
-          `Error: ${status}`;
-
-        if (errorMessage && !url.includes('/auth/login')) {
-          toast.error(errorMessage);
-        }
-      }
-
-      logger.debug('Error details', {
-        url,
-        status,
-        method: config?.method,
-        data: response.data,
-        headers: response.headers
-      });
-
-      return Promise.reject(error);
     }
-  );
 
-  return instance;
-};
+    return Promise.reject(error);
+  }
+);
 
-const api = createApiInstance();
-
-// ==================== CORE API METHODS WITH RETRY ====================
+// ==================== CORE API METHODS ====================
 const coreApi = {
   async get(url, config = {}) {
-    return withRetry(async () => {
-      logger.info(`GET ${url}`);
+    try {
       const response = await api.get(url, config);
       return response.data;
-    });
+    } catch (error) {
+      throw error;
+    }
   },
 
   async post(url, data = {}, config = {}) {
-    return withRetry(async () => {
-      logger.info(`POST ${url}`, data);
+    try {
       const response = await api.post(url, data, config);
       return response.data;
-    });
+    } catch (error) {
+      throw error;
+    }
   },
 
   async put(url, data = {}, config = {}) {
-    return withRetry(async () => {
-      logger.info(`PUT ${url}`, data);
+    try {
       const response = await api.put(url, data, config);
       return response.data;
-    });
+    } catch (error) {
+      throw error;
+    }
   },
 
   async delete(url, config = {}) {
-    return withRetry(async () => {
-      logger.info(`DELETE ${url}`);
+    try {
       const response = await api.delete(url, config);
       return response.data;
-    });
+    } catch (error) {
+      throw error;
+    }
   }
 };
 
-// ==================== AUTH SERVICE WITH COMPREHENSIVE ERROR HANDLING ====================
+// ==================== AUTH SERVICE ====================
 const authService = {
-  isAuthenticated() {
-    const token = getAuthToken();
-    const user = getCurrentUser();
-    const isAuth = !!(token && user);
-    logger.debug('Authentication check', { isAuthenticated: isAuth });
-    return isAuth;
-  },
+  isAuthenticated: userManager.isAuthenticated,
+  getCurrentUser: userManager.getCurrentUser,
+  getUserId: userManager.getUserId,
 
-  getCurrentUser() {
-    return getCurrentUser();
-  },
-
-  getUserId() {
-    return getUserId();
-  },
-
-  // OAuth Methods
-  async getOAuthConfig() {
-    try {
-      logger.info('Fetching OAuth configuration');
-      const response = await coreApi.get('/api/auth/config');
-      return response;
-    } catch (error) {
-      logger.warn('Failed to fetch OAuth config, using defaults', error);
-      return {
-        googleOAuth: {
-          enabled: OAUTH_CONFIG.google.enabled,
-          clientIdConfigured: !!OAUTH_CONFIG.google.clientId,
-          callbackUrl: OAUTH_CONFIG.google.callbackUrl
-        },
-        providers: OAUTH_CONFIG.google.enabled ? ['google'] : []
-      };
-    }
-  },
-
-  // Login with comprehensive error handling
   async login(email, password) {
     try {
-      logger.info('Login attempt', { email });
+      logger.api('POST /auth/login', { email });
 
-      // Try multiple endpoints if needed
-      const endpoints = [
-        '/api/auth/login',
-        '/auth/login'
-      ];
+      const response = await dedupRequest(`login:${email}`, () =>
+        coreApi.post('/auth/login', {
+          email: email.trim().toLowerCase(),
+          password
+        })
+      );
 
-      let lastError;
-
-      for (const endpoint of endpoints) {
-        try {
-          const response = await api.post(endpoint, {
-            email: email.trim().toLowerCase(),
-            password
-          });
-
-          // ✅ FIXED: Get the response data directly
-          const result = response.data;
-
-          if (result?.token && result?.user) {
-            const { token, user } = result;
-
-            // Store auth data
-            localStorage.setItem('token', token);
-            localStorage.setItem('user_data', JSON.stringify(user));
-
-            // Set token in API headers
-            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-
-            logger.info('Login successful', { userId: user._id, email: user.email });
-            toast.success(`Welcome back, ${user.name || user.email}!`);
-
-            return {
-              success: true,
-              token,
-              user
-            };
-          }
-        } catch (error) {
-          lastError = error;
-          if (error.response?.status !== 404) {
-            break; // Don't try other endpoints if it's not a 404
-          }
-        }
+      const { token, user } = response;
+      if (token && user) {
+        tokenManager.setToken(token);
+        localStorage.setItem('user_data', JSON.stringify(user));
+        logger.success('Login successful', { userId: user._id });
+        return { success: true, token, user };
       }
-
-      // If we get here, all endpoints failed
-      if (lastError?.response?.status === 404) {
-        throw new Error('Login service is currently unavailable. Please try again later.');
-      }
-      throw lastError || new Error('Login failed');
-
+      throw new Error('Invalid response format');
     } catch (error) {
-      logger.error('Login failed', error);
-
-      // User-friendly error messages
-      let errorMessage = 'Login failed. Please check your credentials.';
-
-      if (error.response?.status === 401) {
-        errorMessage = 'Invalid email or password.';
-      } else if (error.response?.status === 404) {
-        errorMessage = 'Login service is currently unavailable.';
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-
-      throw new Error(errorMessage);
+      logger.error('Login failed:', error);
+      let message = 'Login failed. Please check your credentials.';
+      if (error.response?.status === 401) message = 'Invalid email or password.';
+      else if (error.response?.status === 404) message = 'Login service unavailable.';
+      else if (error.message) message = error.message;
+      throw new Error(message);
     }
   },
-  // Registration with comprehensive error handling
+
   async register(userData) {
     try {
-      logger.info('Registration attempt', { email: userData.email });
-
-      // Validate required fields
-      const required = ['name', 'email', 'password'];
-      const missing = required.filter(field => !userData[field]);
-
-      if (missing.length > 0) {
-        throw new Error(`Missing required fields: ${missing.join(', ')}`);
-      }
-
-      // Sanitize data
       const sanitizedData = {
         name: String(userData.name).trim(),
         email: String(userData.email).trim().toLowerCase(),
-        password: userData.password
+        password: userData.password,
+        confirmPassword: userData.confirmPassword
       };
 
-      // Add optional fields
-      if (userData.phone) sanitizedData.phone = String(userData.phone).trim();
-      if (userData.company) sanitizedData.company = String(userData.company).trim();
-      if (userData.confirmPassword) sanitizedData.confirmPassword = userData.confirmPassword;
+      const response = await dedupRequest(`register:${sanitizedData.email}`, () =>
+        coreApi.post('/auth/register', sanitizedData)
+      );
 
-      // Try multiple endpoints if needed
-      const endpoints = [
-        '/api/auth/register',
-        '/auth/register'
-      ];
-
-      let lastError;
-      let response;
-
-      for (const endpoint of endpoints) {
-        try {
-          response = await api.post(endpoint, sanitizedData);
-          break; // Success, exit loop
-        } catch (error) {
-          lastError = error;
-          if (error.response?.status !== 404) {
-            break; // Don't try other endpoints if it's not a 404
-          }
-        }
-      }
-
-      if (!response) {
-        if (lastError?.response?.status === 404) {
-          throw new Error('Registration service is currently unavailable. Please try again later.');
-        }
-        throw lastError || new Error('Registration failed');
-      }
-
-      // ✅ FIXED: Get the response data directly
-      const result = response.data;
-
-      if (result?.token && result?.user) {
-        const { token, user } = result;
-
-        localStorage.setItem('token', token);
+      const { token, user } = response;
+      if (token && user) {
+        tokenManager.setToken(token);
         localStorage.setItem('user_data', JSON.stringify(user));
-
-        // Set token in API headers
-        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-
-        logger.info('Registration successful', { userId: user._id });
-        toast.success('Account created successfully!');
-
-        return {
-          success: true,
-          token,
-          user,
-          message: 'Account created successfully!'
-        };
-      } else if (result?.success) {
-        // Handle alternative response format
-        return {
-          success: true,
-          token: result.token,
-          user: result.user || result.data,
-          message: result.message || 'Account created successfully!'
-        };
+        logger.success('Registration successful', { userId: user._id });
+        return { success: true, token, user };
       }
-
-      throw new Error(result?.message || 'Registration failed');
-
+      throw new Error('Invalid response format');
     } catch (error) {
-      logger.error('Registration failed', error);
-
-      // User-friendly error messages
-      let errorMessage = 'Registration failed. Please try again.';
-
-      if (error.response?.status === 400) {
-        errorMessage = error.response.data?.message || 'Invalid registration data.';
-      } else if (error.response?.status === 409) {
-        errorMessage = 'An account with this email already exists.';
-      } else if (error.response?.status === 404) {
-        errorMessage = 'Registration service is currently unavailable.';
-      } else if (error.message) {
-        errorMessage = error.message;
+      logger.error('Registration failed:', error);
+      let message = 'Registration failed. Please try again.';
+      if (error.response?.status === 409) message = 'Email already exists.';
+      else if (error.response?.status === 400) {
+        message = error.response.data?.message || 'Invalid registration data.';
       }
-
-      throw new Error(errorMessage);
+      throw new Error(message);
     }
   },
 
   async logout() {
     try {
-      const user = getCurrentUser();
-      logger.info('Logout', { email: user?.email });
-
-      // Try to call logout endpoint if authenticated
       if (this.isAuthenticated()) {
-        try {
-          await coreApi.post('/api/auth/logout');
-        } catch (error) {
-          logger.warn('Logout API call failed, proceeding with client-side cleanup', error);
-        }
+        await coreApi.post('/auth/logout').catch(() => { });
       }
-
-      // Clear all auth data
-      localStorage.removeItem('token');
+    } finally {
+      tokenManager.removeToken();
       localStorage.removeItem('user_data');
-      localStorage.removeItem('oauth_state');
-      localStorage.removeItem('oauth_redirect');
-      delete api.defaults.headers.common['Authorization'];
+      localStorage.removeItem('local_resumes');
+      localStorage.removeItem('demo_user_id');
+    }
+    return { success: true };
+  },
 
-      toast.success('Logged out successfully!');
-      return { success: true };
+  async verifyToken() {
+    return dedupRequest('auth:verify', async () => {
+      try {
+        const token = tokenManager.getToken();
+        if (!token) {
+          logger.debug('No token to verify');
+          return { success: false, valid: false, authenticated: false };
+        }
+
+        if (!navigator.onLine) {
+          logger.info('📴 Offline mode - using cached user');
+          const user = userManager.getCurrentUser();
+          return {
+            success: true,
+            valid: true,
+            authenticated: true,
+            offline: true,
+            user
+          };
+        }
+
+        logger.debug('Verifying token with backend');
+        const response = await coreApi.get('/auth/verify');
+        const result = response.data || response;
+
+        logger.success('Token verified successfully');
+        return {
+          success: true,
+          valid: true,
+          authenticated: true,
+          user: result.user || result,
+          offline: false
+        };
+      } catch (error) {
+        logger.warn('Token verification failed:', error.message);
+
+        if (error.response?.status === 401) {
+          logger.warn('Token rejected by backend - removing');
+          tokenManager.removeToken();
+          return { success: false, valid: false, authenticated: false };
+        }
+
+        if (error.message.includes('Network Error') || !navigator.onLine) {
+          const user = userManager.getCurrentUser();
+          if (user) {
+            logger.info('Network error - using cached user');
+            return {
+              success: true,
+              valid: true,
+              authenticated: true,
+              offline: true,
+              user
+            };
+          }
+        }
+
+        return { success: false, valid: false, authenticated: false };
+      }
+    });
+  }
+};
+
+// ==================== COMPLETE RESUME SERVICE ====================
+const resumeService = {
+  // GET ALL RESUMES
+  async getUserResumes() {
+    try {
+      if (!tokenManager.getToken()) return [];
+      logger.info('Fetching user resumes...');
+
+      const response = await dedupRequest('resumes:list', () =>
+        coreApi.get('/resumes').catch(err => {
+          if (err.response?.status === 404) {
+            logger.info('No resumes found (404)');
+            return [];
+          }
+          throw err;
+        })
+      );
+
+      const resumes = Array.isArray(response) ? response : response?.data || [];
+      logger.success(`Fetched ${resumes.length} resumes`);
+      return resumes;
     } catch (error) {
-      logger.error('Logout failed', error);
+      logger.error('Failed to fetch resumes:', error);
+      return [];
+    }
+  },
+
+  // GET SINGLE RESUME
+  async getResume(id) {
+    try {
+      if (!tokenManager.getToken()) throw new Error('Not authenticated');
+      logger.info(`Fetching resume: ${id}`);
+
+      const response = await dedupRequest(`resume:${id}`, () =>
+        coreApi.get(`/resumes/${id}`)
+      );
+
+      const resume = response?.data || response;
+      logger.success(`Fetched resume: ${id}`);
+      return resume;
+    } catch (error) {
+      logger.error(`Failed to fetch resume ${id}:`, error);
       throw error;
     }
   },
 
-  // Verify user session
-  async verify() {
-    try {
-      const token = getAuthToken();
-      if (!token) {
-        return { success: false, message: 'No token found' };
-      }
-
-      const response = await coreApi.get('/api/auth/verify');
-      return { success: true, user: response.user || response.data };
-    } catch (error) {
-      logger.warn('Token verification failed', error);
-      return { success: false, message: error.message };
-    }
-  }
-};
-
-// ==================== RESUME SERVICE WITH COMPREHENSIVE ERROR HANDLING ====================
-const resumeService = {
-  async getUserResumes() {
-    try {
-      // Try multiple endpoints
-      const endpoints = ['/api/resumes', '/resumes'];
-
-      for (const endpoint of endpoints) {
-        try {
-          const response = await coreApi.get(endpoint);
-
-          // Handle different response formats
-          let resumes = [];
-
-          if (Array.isArray(response)) {
-            resumes = response;
-          } else if (response?.data && Array.isArray(response.data)) {
-            resumes = response.data;
-          } else if (response?.resumes && Array.isArray(response.resumes)) {
-            resumes = response.resumes;
-          } else if (response?.success && Array.isArray(response.data)) {
-            resumes = response.data;
-          }
-
-          logger.info(`Fetched ${resumes.length} resumes from ${endpoint}`);
-
-          // Normalize resume data
-          return resumes.map(resume => ({
-            _id: resume._id || resume.id,
-            id: resume._id || resume.id,
-            title: resume.title || 'Untitled Resume',
-            template: resume.template || 'modern',
-            status: resume.status || 'draft',
-            isPrimary: resume.isPrimary || false,
-            isStarred: resume.isStarred || false,
-            isPinned: resume.isPinned || false,
-            analysis: {
-              atsScore: resume.analysis?.atsScore || resume.atsScore || 0,
-              completeness: resume.analysis?.completeness || resume.completeness || 0,
-              suggestions: resume.analysis?.suggestions || resume.suggestions || [],
-              lastAnalyzed: resume.analysis?.lastAnalyzed || resume.lastAnalyzed
-            },
-            personalInfo: {
-              fullName: resume.personalInfo?.fullName || '',
-              email: resume.personalInfo?.email || '',
-              phone: resume.personalInfo?.phone || '',
-              location: resume.personalInfo?.location || ''
-            },
-            updatedAt: resume.updatedAt || new Date().toISOString(),
-            createdAt: resume.createdAt || new Date().toISOString(),
-            tags: Array.isArray(resume.tags) ? resume.tags : [],
-            views: resume.views || 0,
-            downloads: resume.downloads || 0,
-            userId: resume.userId || getUserId(),
-            version: resume.version || 1,
-            color: resume.color || '#3b82f6',
-            font: resume.font || 'inter'
-          }));
-        } catch (error) {
-          if (error.response?.status === 404 && endpoint === '/resumes') {
-            continue; // Try next endpoint
-          }
-          throw error;
-        }
-      }
-
-      // If all endpoints fail, return empty array
-      logger.info('No resumes endpoint found, returning empty array');
-      return [];
-
-    } catch (error) {
-      // Specific handling for 404 - user has no resumes yet
-      if (error.response?.status === 404) {
-        logger.info('No resumes found for user (404) - returning empty array');
-        return [];
-      }
-
-      logger.error('Failed to fetch resumes', error);
-
-      // Only show toast for non-404 errors
-      if (error.response?.status !== 404) {
-        toast.error('Failed to load resumes');
-      }
-
-      return [];
-    }
-  },
-
+  // CREATE RESUME - FIXED with templateSettings
   async createResume(resumeData) {
     try {
-      logger.info('Creating new resume', { title: resumeData.title });
+      const userId = userManager.getUserId();
+      if (!userId) throw new Error('Not authenticated');
 
-      const userId = getUserId();
-      if (!userId) {
-        throw new Error('User not authenticated');
+      logger.info('Creating resume with title:', resumeData.title);
+
+      // Log the payload for debugging
+      console.log('📦 Creating resume with data:', JSON.stringify(resumeData, null, 2));
+
+      // Ensure templateSettings has valid values
+      const validFonts = ["Roboto", "Inter", "Montserrat", "Open Sans", "Lato", "Poppins", "Merriweather"];
+
+      // Create templateSettings with defaults if not provided
+      const templateSettings = resumeData.templateSettings || {
+        templateName: resumeData.template || 'modern',
+        colors: {
+          primary: '#3b82f6',
+          secondary: '#6b7280',
+          accent: '#10b981',
+          background: '#ffffff',
+          text: '#000000',
+          header: '#1e40af'
+        },
+        font: 'Roboto',
+        fontSize: 'medium',
+        spacing: 'normal',
+        showPhoto: false,
+        layout: 'single-column'
+      };
+
+      // Capitalize font name if it exists
+      if (templateSettings.font) {
+        const font = templateSettings.font.charAt(0).toUpperCase() +
+          templateSettings.font.slice(1).toLowerCase();
+        templateSettings.font = validFonts.includes(font) ? font : "Roboto";
+      } else {
+        templateSettings.font = "Roboto";
       }
 
-      // Ensure user ID is included
-      const dataToSend = {
-        ...resumeData,
-        userId,
+      const payload = {
+        title: resumeData.title || 'My Resume',
+        summary: resumeData.summary || '',
+        personalInfo: {
+          firstName: resumeData.personalInfo?.firstName || '',
+          lastName: resumeData.personalInfo?.lastName || '',
+          email: resumeData.personalInfo?.email || '',
+          phone: resumeData.personalInfo?.phone || '',
+          location: resumeData.personalInfo?.location || ''
+        },
+        experience: Array.isArray(resumeData.experience) ? resumeData.experience : [],
+        education: Array.isArray(resumeData.education) ? resumeData.education : [],
+        skills: Array.isArray(resumeData.skills) ? resumeData.skills : [],
+        projects: Array.isArray(resumeData.projects) ? resumeData.projects : [],
+        certifications: Array.isArray(resumeData.certifications) ? resumeData.certifications : [],
+        languages: Array.isArray(resumeData.languages) ? resumeData.languages : [],
+        template: resumeData.template || 'modern',
+        templateSettings: templateSettings,
+        status: resumeData.status || 'draft',
+        tags: Array.isArray(resumeData.tags) ? resumeData.tags : [],
+        isPublic: resumeData.isPublic || false,
+        user: userId,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
 
-      // Try multiple endpoints
-      const endpoints = ['/api/resumes', '/resumes'];
-      let response;
+      logger.api('POST /resumes', { title: payload.title });
 
-      for (const endpoint of endpoints) {
-        try {
-          response = await coreApi.post(endpoint, dataToSend);
-          break;
-        } catch (error) {
-          if (error.response?.status === 404 && endpoint === '/resumes') {
-            continue;
-          }
-          throw error;
+      const response = await coreApi.post('/resumes', payload);
+      const created = response?.data || response;
+
+      logger.success('Resume created successfully:', created._id);
+      return created;
+    } catch (error) {
+      logger.error('Failed to create resume:', error);
+
+      if (error.response?.status === 400) {
+        console.error('🔍 Server validation error:', error.response.data);
+        const errors = error.response.data?.errors ||
+          error.response.data?.message ||
+          'Invalid resume data';
+        throw new Error(Array.isArray(errors) ? errors.join(', ') : errors);
+      }
+      throw error;
+    }
+  },
+
+  // UPDATE RESUME - FIXED with templateSettings
+  async updateResume(id, resumeData) {
+    try {
+      logger.info(`Updating resume: ${id}`);
+
+      // Handle templateSettings if present
+      let templateSettings = resumeData.templateSettings;
+      if (templateSettings) {
+        const validFonts = ["Roboto", "Inter", "Montserrat", "Open Sans", "Lato", "Poppins", "Merriweather"];
+        if (templateSettings.font) {
+          const font = templateSettings.font.charAt(0).toUpperCase() +
+            templateSettings.font.slice(1).toLowerCase();
+          templateSettings.font = validFonts.includes(font) ? font : "Roboto";
         }
       }
 
-      if (!response) {
-        throw new Error('No valid endpoint found for creating resume');
-      }
-
-      logger.info('Resume created successfully');
-      toast.success('Resume created!');
-
-      return response?.data || response;
-    } catch (error) {
-      logger.error('Failed to create resume', error);
-      toast.error('Failed to create resume');
-      throw error;
-    }
-  },
-
-  // ... other resume methods with similar error handling ...
-  async getResume(resumeId) {
-    try {
-      logger.info(`Fetching resume ${resumeId}`);
-
-      if (!authService.isAuthenticated()) {
-        throw new Error('User not authenticated');
-      }
-
-      const response = await coreApi.get(`/api/resumes/${resumeId}`);
-      return response?.data || response;
-    } catch (error) {
-      logger.error(`Failed to fetch resume ${resumeId}`, error);
-      toast.error('Failed to load resume');
-      throw error;
-    }
-  },
-
-  async updateResume(resumeId, updateData) {
-    try {
-      logger.info(`Updating resume ${resumeId}`, updateData);
-
-      if (!authService.isAuthenticated()) {
-        throw new Error('User not authenticated');
-      }
-
-      const response = await coreApi.put(`/api/resumes/${resumeId}`, {
-        ...updateData,
+      const payload = {
+        ...resumeData,
+        templateSettings,
         updatedAt: new Date().toISOString()
+      };
+
+      logger.api('PUT /resumes', { id });
+
+      const response = await coreApi.put(`/resumes/${id}`, payload);
+      const updated = response?.data || response;
+
+      logger.success(`Resume updated: ${id}`);
+      return updated;
+    } catch (error) {
+      logger.error(`Failed to update resume ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // DELETE RESUME
+  async deleteResume(id) {
+    try {
+      logger.info(`Deleting resume: ${id}`);
+
+      await coreApi.delete(`/resumes/${id}`);
+
+      logger.success(`Resume deleted: ${id}`);
+      return { success: true };
+    } catch (error) {
+      logger.error(`Failed to delete resume ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // EXPORT RESUME
+  async exportResume(id, format = 'pdf') {
+    try {
+      logger.info(`Exporting resume: ${id} as ${format}`);
+
+      const response = await coreApi.get(`/resumes/${id}/export?format=${format}`, {
+        responseType: 'blob'
       });
 
-      logger.info('Resume updated successfully');
-      toast.success('Resume updated!');
+      const url = window.URL.createObjectURL(new Blob([response]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `resume-${id}.${format}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
 
-      return response?.data || response;
+      logger.success(`Resume exported: ${id}`);
+      return { success: true, url };
     } catch (error) {
-      logger.error(`Failed to update resume ${resumeId}`, error);
-      toast.error('Failed to update resume');
+      logger.error(`Failed to export resume ${id}:`, error);
       throw error;
     }
   },
 
-  async deleteResume(resumeId) {
+  // DUPLICATE RESUME
+  async duplicateResume(id) {
     try {
-      logger.info(`Deleting resume ${resumeId}`);
+      logger.info(`Duplicating resume: ${id}`);
 
-      if (!authService.isAuthenticated()) {
-        throw new Error('User not authenticated');
-      }
+      const response = await coreApi.post(`/resumes/${id}/duplicate`);
+      const duplicated = response?.data || response;
 
-      const response = await coreApi.delete(`/api/resumes/${resumeId}`);
-
-      logger.info('Resume deleted successfully');
-      toast.success('Resume deleted!');
-
-      return response;
+      logger.success(`Resume duplicated: ${duplicated._id}`);
+      return duplicated;
     } catch (error) {
-      logger.error(`Failed to delete resume ${resumeId}`, error);
-      toast.error('Failed to delete resume');
+      logger.error(`Failed to duplicate resume ${id}:`, error);
       throw error;
     }
   },
 
+  // GET EMPTY RESUME TEMPLATE
   getEmptyResume() {
-    const user = getCurrentUser();
-
-    if (!user) {
-      throw new Error('User not authenticated');
-    }
-
+    const user = userManager.getCurrentUser();
     return {
-      title: 'New Resume',
-      status: 'draft',
-      personalInfo: {
-        fullName: user.name || '',
-        email: user.email || '',
-        phone: '',
-        address: '',
-        linkedin: '',
-        github: '',
-        portfolio: ''
-      },
+      _id: 'new',
+      title: 'My Resume',
       summary: '',
+      personalInfo: {
+        firstName: user?.name?.split(' ')[0] || '',
+        lastName: user?.name?.split(' ').slice(1).join(' ') || '',
+        email: user?.email || '',
+        phone: '',
+        location: ''
+      },
       experience: [],
       education: [],
       skills: [],
@@ -827,319 +660,71 @@ const resumeService = {
       certifications: [],
       languages: [],
       template: 'modern',
-      userId: user._id,
+      templateSettings: {
+        templateName: 'modern',
+        colors: {
+          primary: '#3b82f6',
+          secondary: '#6b7280',
+          accent: '#10b981',
+          background: '#ffffff',
+          text: '#000000',
+          header: '#1e40af'
+        },
+        font: 'Roboto',
+        fontSize: 'medium',
+        spacing: 'normal',
+        showPhoto: false,
+        layout: 'single-column'
+      },
+      status: 'draft',
+      tags: [],
+      isPublic: false,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      analysis: {
-        atsScore: 0,
-        completeness: 0,
-        suggestions: ['Add more details to improve your resume'],
-        lastAnalyzed: null
-      }
-    };
-  }
-};
-
-// ==================== DASHBOARD SERVICE WITH FALLBACK ====================
-const dashboardService = {
-  async getDashboardStats() {
-    try {
-      logger.info('Fetching dashboard stats');
-
-      // Try to get resumes
-      try {
-        const resumes = await resumeService.getUserResumes();
-        const stats = await this.calculateStatsFromResumes(resumes);
-        logger.info('Calculated stats from resumes', stats);
-        return stats;
-      } catch (error) {
-        logger.error('Failed to calculate stats from resumes', error);
-        return this.getFallbackStats();
-      }
-    } catch (error) {
-      logger.error('Failed to fetch dashboard stats', error);
-      return this.getFallbackStats();
-    }
-  },
-
-  async calculateStatsFromResumes(resumes) {
-    try {
-      if (!resumes) {
-        resumes = await resumeService.getUserResumes();
-      }
-
-      const totalResumes = resumes.length;
-      const completedResumes = resumes.filter(r => r.status === 'completed').length;
-      const draftResumes = resumes.filter(r => r.status === 'draft').length;
-      const inProgressResumes = resumes.filter(r => r.status === 'in-progress').length;
-
-      // Calculate ATS scores
-      const atsScores = resumes
-        .filter(r => r.analysis?.atsScore)
-        .map(r => r.analysis.atsScore);
-
-      const averageAtsScore = atsScores.length > 0 ?
-        Math.round(atsScores.reduce((a, b) => a + b, 0) / atsScores.length) : 0;
-
-      const highScoreResumes = resumes.filter(r => r.analysis?.atsScore >= 80).length;
-      const mediumScoreResumes = resumes.filter(r =>
-        r.analysis?.atsScore >= 60 && r.analysis?.atsScore < 80
-      ).length;
-      const lowScoreResumes = resumes.filter(r => r.analysis?.atsScore < 60).length;
-
-      // Calculate views and downloads
-      const totalViews = resumes.reduce((sum, r) => sum + (r.views || 0), 0);
-      const totalDownloads = resumes.reduce((sum, r) => sum + (r.downloads || 0), 0);
-
-      // Calculate completion rate
-      const completionRate = totalResumes > 0 ?
-        Math.round((completedResumes / totalResumes) * 100) : 0;
-
-      // Get template distribution
-      const templatesUsed = resumes.reduce((acc, resume) => {
-        const template = resume.template || 'unknown';
-        acc[template] = (acc[template] || 0) + 1;
-        return acc;
-      }, {});
-
-      // Generate recent activity
-      const recentActivity = resumes
-        .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
-        .slice(0, 5)
-        .map(resume => ({
-          type: 'update',
-          description: `${resume.title} was updated`,
-          timestamp: resume.updatedAt,
-          resumeId: resume._id
-        }));
-
-      // Calculate storage usage
-      const storageUsedMB = Math.round(totalResumes * 0.5);
-      const storageLimitMB = 500;
-      const storageUsedPercentage = Math.round((storageUsedMB / storageLimitMB) * 100);
-
-      return {
-        totalResumes,
-        completedResumes,
-        draftResumes,
-        inProgressResumes,
-        averageAtsScore,
-        highScoreResumes,
-        mediumScoreResumes,
-        lowScoreResumes,
-        totalViews,
-        totalDownloads,
-        completionRate,
-        templatesUsed,
-        recentActivity,
-        storageUsed: `${storageUsedMB} MB`,
-        storageLimit: `${storageLimitMB} MB`,
-        storageUsedPercentage,
-        lastSynced: new Date().toISOString(),
-        onlineUsers: 1,
-        activeSessions: 1,
-        needsImprovementResumes: lowScoreResumes,
-        performanceTrend: totalResumes > 0 ? 'improving' : 'stable'
-      };
-    } catch (error) {
-      logger.error('Failed to calculate stats from resumes', error);
-      return this.getFallbackStats();
-    }
-  },
-
-  getFallbackStats() {
-    logger.info('Using fallback dashboard stats');
-    return {
-      totalResumes: 0,
-      completedResumes: 0,
-      draftResumes: 0,
-      inProgressResumes: 0,
-      averageAtsScore: 0,
-      highScoreResumes: 0,
-      mediumScoreResumes: 0,
-      lowScoreResumes: 0,
-      totalViews: 0,
-      totalDownloads: 0,
-      completionRate: 0,
-      templatesUsed: {},
-      recentActivity: [],
-      storageUsed: '0 MB',
-      storageLimit: '500 MB',
-      storageUsedPercentage: 0,
-      lastSynced: new Date().toISOString(),
-      onlineUsers: 1,
-      activeSessions: 0,
-      needsImprovementResumes: 0,
-      performanceTrend: 'stable'
+      updatedAt: new Date().toISOString()
     };
   }
 };
 
 // ==================== HEALTH SERVICE ====================
 const healthService = {
-  async checkBackendHealth() {
-    try {
-      logger.info('Checking backend health');
-
-      // Try multiple health endpoints
-      const endpoints = [
-        '/api/health',
-        '/health',
-        '/'
-      ];
-
-      for (const endpoint of endpoints) {
-        try {
-          const response = await axios.get(`${API_BASE_URL}${endpoint}`, {
-            timeout: 5000,
-            headers: {
-              'Accept': 'application/json'
-            }
-          });
-
-          logger.info(`Backend health check passed: ${endpoint}`);
-          return {
-            healthy: true,
-            endpoint,
-            data: response.data
-          };
-        } catch (error) {
-          logger.warn(`Health check failed for ${endpoint}: ${error.message}`);
-        }
-      }
-
-      logger.error('All health checks failed');
-      return {
-        healthy: false,
-        message: 'Backend is not responding'
-      };
-    } catch (error) {
-      logger.error('Health check error', error);
-      return {
-        healthy: false,
-        message: error.message
-      };
-    }
-  },
-
-  async testApiEndpoints() {
-    const endpoints = [
-      { name: 'Health', url: '/api/health', method: 'GET' },
-      { name: 'Resumes', url: '/api/resumes/', method: 'GET' },
-      { name: 'Auth Config', url: '/api/auth/config', method: 'GET' }
-    ];
-
-    const results = [];
-
-    for (const endpoint of endpoints) {
+  async check() {
+    return dedupRequest('health:check', async () => {
       try {
-        if (endpoint.method === 'GET') {
-          await api.get(endpoint.url);
-          results.push({ ...endpoint, status: '✅ OK' });
-        }
+        await api.get('/health', { timeout: 5000 });
+        return { healthy: true, online: true };
       } catch (error) {
-        results.push({
-          ...endpoint,
-          status: '❌ Failed',
-          error: error.response?.status || error.message
-        });
+        return { healthy: false, online: false };
       }
-    }
-
-    logger.info('API endpoint test results', results);
-    return results;
+    }, true);
   }
 };
 
 // ==================== MAIN API SERVICE ====================
 const apiService = {
-  // HTTP methods with retry
   get: coreApi.get,
   post: coreApi.post,
   put: coreApi.put,
   delete: coreApi.delete,
-
-  // Services
   auth: authService,
   resume: resumeService,
-  dashboard: dashboardService,
   health: healthService,
-
-  // Configuration
+  token: tokenManager,
+  user: userManager,
+  logger,
   baseURL: API_BASE_URL,
   env: ENV,
-  config: OAUTH_CONFIG,
 
-  // Utility functions
-  getUserId,
-  getCurrentUser,
-  getAuthToken,
-
-  // Set Authorization Token
-  setAuthToken: (token) => {
-    if (token) {
-      // Set default Authorization header for all future requests
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      logger.info('Auth token set in API headers');
-    } else {
-      // Remove Authorization header
-      delete api.defaults.headers.common['Authorization'];
-      logger.info('Auth token cleared from API headers');
-    }
-  },
-
-  // Logger
-  logger,
-
-  // Initialize
   async init() {
-    logger.info(`Initializing API Service (${ENV.toUpperCase()})`);
-    logger.info(`Backend URL: ${API_BASE_URL}`);
-
     try {
-      // Check backend health
-      const health = await this.health.checkBackendHealth();
-
-      if (health.healthy) {
-        logger.info('✅ Backend is connected and healthy');
-      } else {
-        logger.warn('⚠️ Backend may not be running or is unreachable');
-
-        if (ENV === 'development') {
-          toast('Backend server may not be running. Some features may not work.', {
-            duration: 5000,
-            icon: '⚠️'
-          });
-        }
-      }
-
-      // Check authentication status
-      if (this.auth.isAuthenticated()) {
-        logger.info('✅ User is authenticated');
-
-        // Test API access
-        try {
-          await this.get('/health');
-          logger.info('✅ Backend API is responding');
-        } catch (error) {
-          logger.warn('⚠️ Backend API access issue:', error.message);
-        }
-      }
-
-      logger.info('✅ API Service initialized successfully');
-      return true;
+      logger.info(`Initializing API Service (${ENV})`);
+      await this.health.check();
+      logger.success('API Service initialized');
     } catch (error) {
-      logger.error('❌ API Service initialization failed', error);
-      return false;
+      logger.error('API Service initialization failed:', error);
     }
   }
 };
 
-// Auto-initialize
-if (ENV === 'development') {
-  setTimeout(() => {
-    apiService.init();
-  }, 1000);
-}
+setTimeout(() => apiService.init(), 1000);
 
 export default apiService;

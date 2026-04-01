@@ -686,4 +686,4 @@ const ATSInsightsPanel = ({
   );
 };
 
-export default ATSInsightsPanel;
+export default React.memo(ATSInsightsPanel);

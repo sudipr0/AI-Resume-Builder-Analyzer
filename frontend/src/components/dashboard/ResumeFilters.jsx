@@ -136,4 +136,4 @@ const ResumeFilters = ({
   );
 };
 
-export default ResumeFilters;
+export default React.memo(ResumeFilters);

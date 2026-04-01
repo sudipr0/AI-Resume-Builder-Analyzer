@@ -46,4 +46,4 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-export default ProtectedRoute;
+export default React.memo(ProtectedRoute);

@@ -26,4 +26,4 @@ const OptimizeSummaryButton = ({ summary, jobDescription, onUpdate }) => {
     );
 };
 
-export default OptimizeSummaryButton;
+export default React.memo(OptimizeSummaryButton);

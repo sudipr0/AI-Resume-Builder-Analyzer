@@ -1,45 +1,44 @@
-import { extractJDKeywords } from "./jdExtractor.service.js";
-import { extractResumeKeywords } from "./resumeExtractor.service.js";
-import { keywordMatch } from "./keywordMatch.service.js";
-import { calcATSScore } from "./atsScore.service.js";
-import { analyzeBullets } from "./bulletQuality.service.js";
-import { detectMetrics } from "./metrics.service.js";
-import { checkSections } from "./sectionCheck.service.js";
-import { buildSuggestions } from "./suggestion.service.js";
+// backend/src/ai/services/analyzer.service.js
+import aiService from '../ai.service.js';
 
-export const runAnalyzer = async ({ resume, jobDescription }) => {
-    // 1️⃣ Extract JD keywords (AI-powered)
-    const jdKeywords = await extractJDKeywords(jobDescription);
+export class AnalyzerService {
+    static async analyzeResumeWithJD(resumeData, jobDescription) {
+        const result = await aiService.analyzeResume(resumeData, jobDescription);
+        return result.data;
+    }
 
-    // 2️⃣ Extract resume keywords (local)
-    const resumeSet = extractResumeKeywords(resume);
+    static async extractKeywordsFromJD(jobDescription) {
+        const result = await aiService.extractKeywords(jobDescription);
+        return result.data;
+    }
 
-    // 3️⃣ Keyword matching
-    const match = keywordMatch(jdKeywords, resumeSet);
+    static async calculateMatchScore(resumeData, jobDescription) {
+        const result = await aiService.analyzeResume(resumeData, jobDescription);
+        const data = result.data;
 
-    // 4️⃣ Bullet analysis
-    const bullets = analyzeBullets(resume.experience);
+        return {
+            score: data.atsScore?.score || 0,
+            matchPercentage: data.keywordMatch?.matchPercentage || 0,
+            matchedKeywords: data.keywordMatch?.matchedKeywords || [],
+            missingKeywords: data.keywordMatch?.missingKeywords || [],
+            criticalMissing: data.keywordMatch?.criticalMissing || []
+        };
+    }
 
-    // 5️⃣ Metrics detection
-    const metrics = detectMetrics(resume.experience);
+    static async getFullAnalysis(resumeData, jobDescription) {
+        const [analysis, atsScore] = await Promise.all([
+            aiService.analyzeResume(resumeData, jobDescription),
+            aiService.calculateATSScore(resumeData, jobDescription)
+        ]);
 
-    // 6️⃣ Section completeness
-    const sections = checkSections(resume);
+        return {
+            analysis: analysis.data,
+            atsScore: atsScore.data
+        };
+    }
+}
 
-    // 7️⃣ ATS scoring
-    const ats = calcATSScore({ match, bullets, metrics, sections });
-
-    // 8️⃣ AI suggestions
-    const suggestions = await buildSuggestions({ resume, missing: match.missing });
-
-    return {
-        atsScore: ats.total,
-        breakdown: ats.breakdown,
-        keywordMatch: match.percent,
-        missingKeywords: match.missing,
-        weakBullets: bullets.weak,
-        metricsMissing: metrics.missing,
-        sectionIssues: sections.missing,
-        suggestions
-    };
-};
+// For backward compatibility with existing imports
+export const analyzeResumeFull = AnalyzerService.analyzeResumeWithJD;
+export const extractKeywords = AnalyzerService.extractKeywordsFromJD;
+export const calculateMatchScore = AnalyzerService.calculateMatchScore;

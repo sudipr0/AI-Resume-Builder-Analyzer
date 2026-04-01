@@ -354,4 +354,4 @@ const TemplatesPage = () => {
   );
 };
 
-export default TemplatesPage;
+export default React.memo(TemplatesPage);

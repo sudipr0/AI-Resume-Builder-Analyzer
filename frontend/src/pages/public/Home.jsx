@@ -80,7 +80,7 @@ const Home = () => {
 
     const checkHealth = async () => {
       try {
-        const res = await fetch(`${apiBase}/api/ai/health`, { method: 'GET', cache: 'no-store' });
+        const res = await fetch(`${apiBase}/api/health`, { method: 'GET', cache: 'no-store' });
         if (!mounted) {
           return;
         }
@@ -679,4 +679,4 @@ const Home = () => {
   );
 };
 
-export default Home;
+export default React.memo(Home);

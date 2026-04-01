@@ -524,4 +524,4 @@ export const withNotification = (Component) => {
   };
 };
 
-export default NotificationContext;
+export default React.memo(NotificationContext);

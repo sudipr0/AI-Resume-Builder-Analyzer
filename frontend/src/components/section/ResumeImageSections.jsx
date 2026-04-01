@@ -250,4 +250,4 @@ const PersonalInfoPage = ({ data = {}, onUpdate }) => {
   );
 };
 
-export default PersonalInfoPage;
+export default React.memo(PersonalInfoPage);

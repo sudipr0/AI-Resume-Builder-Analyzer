@@ -339,4 +339,4 @@ const System = () => {
   );
 };
 
-export default System;
+export default React.memo(System);

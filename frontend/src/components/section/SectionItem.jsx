@@ -175,4 +175,4 @@ const SectionItem = ({
   );
 };
 
-export default SectionItem;
+export default React.memo(SectionItem);

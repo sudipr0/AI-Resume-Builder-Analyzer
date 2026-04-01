@@ -663,4 +663,4 @@ const EducationBuilder = ({
   );
 };
 
-export default EducationBuilder;
+export default React.memo(EducationBuilder);

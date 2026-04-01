@@ -78,4 +78,4 @@ const GoogleOAuthButton = () => {
   );
 };
 
-export default GoogleOAuthButton;
+export default React.memo(GoogleOAuthButton);

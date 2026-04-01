@@ -283,4 +283,4 @@ export const AdminAuthProvider = ({ children }) => {
     );
 };
 
-export default AdminAuthProvider;
+export default React.memo(AdminAuthProvider);

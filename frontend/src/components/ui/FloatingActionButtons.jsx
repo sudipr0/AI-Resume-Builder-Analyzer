@@ -166,4 +166,4 @@ const FloatingActionButtons = ({
   );
 };
 
-export default FloatingActionButtons;
+export default React.memo(FloatingActionButtons);

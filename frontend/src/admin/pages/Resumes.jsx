@@ -1678,4 +1678,4 @@ const Resumes = () => {
   );
 };
 
-export default Resumes;
+export default React.memo(Resumes);

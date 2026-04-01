@@ -48,4 +48,4 @@ const StepForm = ({ resume, onResumeUpdate }) => {
   );
 };
 
-export default StepForm;
+export default React.memo(StepForm);

@@ -159,4 +159,4 @@ const CertificationsBuilder = ({ data = [], onChange, onAIEnhance, isAnalyzing }
   );
 };
 
-export default CertificationsBuilder;
+export default React.memo(CertificationsBuilder);

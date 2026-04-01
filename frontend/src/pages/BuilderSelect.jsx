@@ -227,4 +227,4 @@ const BuilderSelect = () => {
   );
 };
 
-export default BuilderSelect;
+export default React.memo(BuilderSelect);

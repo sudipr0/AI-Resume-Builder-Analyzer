@@ -16,7 +16,7 @@ const SECTION_WEIGHTS = {
 
 const MINIMUM_REQUIREMENTS = {
   personalInfo: {
-    required: ['fullName', 'email'],
+    required: ['firstName', 'lastName', 'email'], // Changed from fullName to firstName/lastName
     recommended: ['phone', 'location', 'jobTitle'],
     optional: ['linkedin', 'github', 'website']
   },
@@ -33,7 +33,8 @@ const MINIMUM_REQUIREMENTS = {
 // Field validators for each section
 const FIELD_VALIDATORS = {
   personalInfo: {
-    fullName: (value) => typeof value === 'string' && value.trim().length >= 2,
+    firstName: (value) => typeof value === 'string' && value.trim().length >= 2,
+    lastName: (value) => typeof value === 'string' && value.trim().length >= 2,
     email: (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value?.trim() || ''),
     phone: (value) => typeof value === 'string' && value.trim().replace(/[\s\-\(\)]/g, '').length >= 7,
     jobTitle: (value) => typeof value === 'string' && value.trim().length >= 2,
@@ -41,14 +42,13 @@ const FIELD_VALIDATORS = {
   },
   experience: {
     company: (value) => typeof value === 'string' && value.trim().length >= 2,
-    position: (value) => typeof value === 'string' && value.trim().length >= 2,
+    jobTitle: (value) => typeof value === 'string' && value.trim().length >= 2,
     startDate: (value) => value && !isNaN(Date.parse(value)),
     description: (value) => typeof value === 'string' && value.trim().length >= 20
   },
   education: {
     institution: (value) => typeof value === 'string' && value.trim().length >= 2,
     degree: (value) => typeof value === 'string' && value.trim().length >= 2,
-    field: (value) => typeof value === 'string' && value.trim().length >= 2,
     startDate: (value) => value && !isNaN(Date.parse(value))
   },
   skills: {
@@ -134,7 +134,7 @@ const calculatePersonalInfoCompletion = (personalInfo) => {
   };
 };
 
-// Calculate array-based section completion
+// Calculate array-based section completion (unchanged)
 const calculateArraySectionCompletion = (sectionName, items, minRequired, fieldChecks) => {
   if (!Array.isArray(items)) {
     return {
@@ -217,7 +217,7 @@ const calculateArraySectionCompletion = (sectionName, items, minRequired, fieldC
   };
 };
 
-// Calculate summary completion
+// Calculate summary completion (unchanged)
 const calculateSummaryCompletion = (summary) => {
   if (!summary || typeof summary !== 'string') {
     return {
@@ -263,7 +263,7 @@ const calculateSummaryCompletion = (summary) => {
   };
 };
 
-// Calculate ATS score
+// Calculate ATS score (unchanged)
 const calculateATSscore = (sections) => {
   let score = 0;
   const maxScore = 100;
@@ -312,7 +312,7 @@ const calculateATSscore = (sections) => {
   return Math.min(Math.round((score / maxScore) * 100), 100);
 };
 
-// Generate contextual suggestions
+// Generate contextual suggestions (unchanged)
 const generateSuggestions = (sections) => {
   const suggestions = [];
 
@@ -364,73 +364,41 @@ const generateSuggestions = (sections) => {
   return suggestions.slice(0, 5);
 };
 
-// Progress utilities
+// Progress utilities (unchanged)
 const getProgressColor = (percentage) => {
-  if (percentage >= 90) {
-    return '#10b981';
-  }
-  if (percentage >= 75) {
-    return '#22c55e';
-  }
-  if (percentage >= 50) {
-    return '#f59e0b';
-  }
-  if (percentage >= 25) {
-    return '#f97316';
-  }
+  if (percentage >= 90) return '#10b981';
+  if (percentage >= 75) return '#22c55e';
+  if (percentage >= 50) return '#f59e0b';
+  if (percentage >= 25) return '#f97316';
   return '#ef4444';
 };
 
 const getProgressCSS = (percentage) => {
-  if (percentage >= 90) {
-    return 'bg-emerald-500 text-white';
-  }
-  if (percentage >= 75) {
-    return 'bg-green-500 text-white';
-  }
-  if (percentage >= 50) {
-    return 'bg-yellow-500 text-yellow-900';
-  }
-  if (percentage >= 25) {
-    return 'bg-orange-500 text-orange-900';
-  }
+  if (percentage >= 90) return 'bg-emerald-500 text-white';
+  if (percentage >= 75) return 'bg-green-500 text-white';
+  if (percentage >= 50) return 'bg-yellow-500 text-yellow-900';
+  if (percentage >= 25) return 'bg-orange-500 text-orange-900';
   return 'bg-red-500 text-white';
 };
 
 const getProgressGradient = (percentage) => {
-  if (percentage >= 90) {
-    return 'from-emerald-500 to-green-500';
-  }
-  if (percentage >= 75) {
-    return 'from-green-500 to-yellow-500';
-  }
-  if (percentage >= 50) {
-    return 'from-yellow-500 to-orange-500';
-  }
-  if (percentage >= 25) {
-    return 'from-orange-500 to-red-500';
-  }
+  if (percentage >= 90) return 'from-emerald-500 to-green-500';
+  if (percentage >= 75) return 'from-green-500 to-yellow-500';
+  if (percentage >= 50) return 'from-yellow-500 to-orange-500';
+  if (percentage >= 25) return 'from-orange-500 to-red-500';
   return 'from-red-500 to-rose-500';
 };
 
 const getProgressLabel = (percentage) => {
-  if (percentage >= 90) {
-    return 'Excellent';
-  }
-  if (percentage >= 75) {
-    return 'Good';
-  }
-  if (percentage >= 50) {
-    return 'Fair';
-  }
-  if (percentage >= 25) {
-    return 'Needs Work';
-  }
+  if (percentage >= 90) return 'Excellent';
+  if (percentage >= 75) return 'Good';
+  if (percentage >= 50) return 'Fair';
+  if (percentage >= 25) return 'Needs Work';
   return 'Incomplete';
 };
 
 // Main hook function
-const useResumeCompletion = (resumeData) => {
+function useResumeCompletion(resumeData) {
   // Create safe data
   const safeResumeData = useMemo(() => {
     if (!resumeData || typeof resumeData !== 'object') {
@@ -486,42 +454,24 @@ const useResumeCompletion = (resumeData) => {
 
     // Calculate each section
     sections.personalInfo = calculatePersonalInfoCompletion(safeResumeData.personalInfo);
-
     sections.experience = calculateArraySectionCompletion(
       'experience',
       safeResumeData.experience,
       MINIMUM_REQUIREMENTS.experience,
-      {
-        company: 'required',
-        position: 'required',
-        startDate: 'required',
-        description: 'recommended'
-      }
+      { company: 'required', jobTitle: 'required', startDate: 'required', description: 'recommended' }
     );
-
     sections.education = calculateArraySectionCompletion(
       'education',
       safeResumeData.education,
       MINIMUM_REQUIREMENTS.education,
-      {
-        institution: 'required',
-        degree: 'required',
-        field: 'recommended',
-        startDate: 'recommended'
-      }
+      { institution: 'required', degree: 'required', startDate: 'recommended' }
     );
-
     sections.skills = calculateArraySectionCompletion(
       'skills',
       safeResumeData.skills,
       MINIMUM_REQUIREMENTS.skills,
-      {
-        name: 'required',
-        level: 'recommended',
-        category: 'optional'
-      }
+      { name: 'required', level: 'recommended' }
     );
-
     sections.summary = calculateSummaryCompletion(safeResumeData.summary);
 
     // Calculate weighted overall score
@@ -533,9 +483,7 @@ const useResumeCompletion = (resumeData) => {
       totalWeight += section.weight;
     });
 
-    const overallPercentage = totalWeight > 0
-      ? Math.round((weightedSum / totalWeight) * 100)
-      : 0;
+    const overallPercentage = totalWeight > 0 ? Math.round((weightedSum / totalWeight) * 100) : 0;
 
     // Generate suggestions
     const suggestions = generateSuggestions(sections);
@@ -553,18 +501,10 @@ const useResumeCompletion = (resumeData) => {
 
     // Determine progress level
     const getProgressLevel = (percentage) => {
-      if (percentage >= 90) {
-        return 'excellent';
-      }
-      if (percentage >= 75) {
-        return 'good';
-      }
-      if (percentage >= 50) {
-        return 'fair';
-      }
-      if (percentage >= 25) {
-        return 'needs-work';
-      }
+      if (percentage >= 90) return 'excellent';
+      if (percentage >= 75) return 'good';
+      if (percentage >= 50) return 'fair';
+      if (percentage >= 25) return 'needs-work';
       return 'empty';
     };
 
@@ -668,29 +608,19 @@ const useResumeCompletion = (resumeData) => {
 
   // Quick checks
   const isPersonalInfoComplete = useMemo(() =>
-    completion.sections?.personalInfo?.percentage >= 70,
-  [completion]
-  );
+    completion.sections?.personalInfo?.percentage >= 70, [completion]);
 
   const isExperienceComplete = useMemo(() =>
-    completion.sections?.experience?.percentage >= 80,
-  [completion]
-  );
+    completion.sections?.experience?.percentage >= 80, [completion]);
 
   const isEducationComplete = useMemo(() =>
-    completion.sections?.education?.percentage >= 70,
-  [completion]
-  );
+    completion.sections?.education?.percentage >= 70, [completion]);
 
   const isSkillsComplete = useMemo(() =>
-    completion.sections?.skills?.percentage >= 80,
-  [completion]
-  );
+    completion.sections?.skills?.percentage >= 80, [completion]);
 
   const hasSummary = useMemo(() =>
-    completion.sections?.summary?.percentage >= 50,
-  [completion]
-  );
+    completion.sections?.summary?.percentage >= 50, [completion]);
 
   // Completed sections count
   const completedSections = useMemo(() => {
@@ -703,10 +633,7 @@ const useResumeCompletion = (resumeData) => {
   }, [completion]);
 
   return {
-    // Main completion object
     ...completion,
-
-    // Helper methods
     getSectionCompletion,
     isFieldFilled,
     getProgressColor: useCallback(getProgressColor, []),
@@ -716,25 +643,19 @@ const useResumeCompletion = (resumeData) => {
     getNextAction,
     getSectionBreakdown,
     getAnalytics,
-
-    // Quick checks
     isPersonalInfoComplete,
     isExperienceComplete,
     isEducationComplete,
     isSkillsComplete,
     hasSummary,
-
-    // Section-specific completion
     personalInfo: completion.sections?.personalInfo || {},
     experience: completion.sections?.experience || {},
     education: completion.sections?.education || {},
     skills: completion.sections?.skills || {},
     summary: completion.sections?.summary || {},
-
-    // For UI display
     completedSections,
     totalSections
   };
-};
+}
 
 export default useResumeCompletion;

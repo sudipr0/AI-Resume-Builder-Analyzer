@@ -306,4 +306,4 @@ const ResumeVersionHistory = ({ resumeId, currentVersion, onRestore, onClose }) 
   );
 };
 
-export default ResumeVersionHistory;
+export default React.memo(ResumeVersionHistory);

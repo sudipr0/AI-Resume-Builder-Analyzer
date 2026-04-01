@@ -455,16 +455,6 @@ const Register = () => {
                 />
               </div>
 
-              {/* Facebook OAuth */}
-              <button
-                onClick={() => handleSocialRegister('facebook')}
-                disabled={isLoading || authLoading}
-                className="w-full flex items-center justify-center gap-3 mb-6 lg:mb-8 px-6 py-3 border border-gray-300 dark:border-gray-600 rounded-xl font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-400 dark:hover:border-gray-500 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm lg:text-base active:scale-95"
-              >
-                <FaFacebook className="text-lg lg:text-xl text-blue-600 dark:text-blue-400" />
-                <span>Continue with Facebook</span>
-              </button>
-
               <div className="flex items-center mb-6 lg:mb-8">
                 <div className="flex-1 border-t border-gray-300 dark:border-gray-600"></div>
                 <span className="px-4 text-sm lg:text-base text-gray-500 dark:text-gray-400">Or with email</span>
@@ -719,21 +709,7 @@ const Register = () => {
                 </motion.button>
               </form>
 
-              {/* Demo Account Notice */}
-              <motion.div
-                className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border border-blue-100 dark:border-blue-800 rounded-xl"
-                variants={itemVariants}
-              >
-                <p className="text-sm text-gray-700 dark:text-gray-300 text-center">
-                  Want to try first?{' '}
-                  <Link
-                    to="/login"
-                    className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium hover:underline"
-                  >
-                    Use Demo Account on Login page
-                  </Link>
-                </p>
-              </motion.div>
+
 
               {/* Footer */}
               <motion.div
@@ -768,4 +744,4 @@ const Register = () => {
   );
 };
 
-export default Register;
+export default React.memo(Register);

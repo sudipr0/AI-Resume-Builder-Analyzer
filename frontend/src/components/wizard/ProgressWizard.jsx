@@ -262,4 +262,4 @@ const ProgressWizard = ({
   );
 };
 
-export default ProgressWizard;
+export default React.memo(ProgressWizard);

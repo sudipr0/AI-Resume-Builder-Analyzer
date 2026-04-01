@@ -44,14 +44,45 @@ const userSchema = new mongoose.Schema({
     sparse: true,
     default: ''
   },
+  linkedinId: {
+    type: String,
+    sparse: true,
+    default: ''
+  },
   provider: {
     type: String,
-    enum: ['local', 'google', 'facebook'],
+    enum: ['local', 'google', 'facebook', 'linkedin'],
     default: 'local'
   },
   isOAuth: {
     type: Boolean,
     default: false
+  },
+
+  // Subscription & Payments
+  stripeCustomerId: String,
+  subscription: {
+    planId: { type: String, default: 'free' },
+    stripeSubscriptionId: String,
+    status: { 
+      type: String, 
+      enum: ['active', 'past_due', 'cancelled', 'trialing', 'incomplete'], 
+      default: 'active' 
+    },
+    currentPeriodEnd: Date,
+    cancelAtPeriodEnd: { type: Boolean, default: false },
+    limits: {
+      resumes: { type: Number, default: 3 },
+      templates: { type: Number, default: 5 },
+      aiCredits: { type: Number, default: 10 },
+      exports: { type: Number, default: 5 }
+    }
+  },
+
+  credits: { 
+    type: Number, 
+    default: 10,
+    min: 0
   },
 
   // Account Status
@@ -64,6 +95,11 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isBanned: {
+    type: Boolean,
+    default: false
+  },
+  banReason: String,
   isActive: {
     type: Boolean,
     default: true
@@ -77,19 +113,6 @@ const userSchema = new mongoose.Schema({
     default: false,
     select: false
   },
-
-  // Resume Builder Specific Fields
-  aiCredits: {
-    type: Number,
-    default: 150,
-    min: 0
-  },
-  plan: {
-    type: String,
-    enum: ['free', 'pro', 'enterprise'],
-    default: 'free'
-  },
-  subscriptionEnds: Date,
 
   // Email Verification
   emailVerificationToken: String,
@@ -138,52 +161,24 @@ const userSchema = new mongoose.Schema({
     industry: String
   },
 
-  // Dashboard Statistics
+  // Global Statistics
+  stats: {
+    resumesCreated: { type: Number, default: 0 },
+    aiCallsMade: { type: Number, default: 0 },
+    lastActive: { type: Date, default: Date.now },
+    loginCount: { type: Number, default: 0 },
+    totalViews: { type: Number, default: 0 },
+    totalDownloads: { type: Number, default: 0 },
+    averageATSScore: { type: Number, default: 0 },
+    bestATSScore: { type: Number, default: 0 }
+  },
+
+  // Legacy/Compatibility Stats (Keeping some for internal logic if needed)
   dashboardStats: {
-    totalResumes: {
-      type: Number,
-      default: 0
-    },
-    completedResumes: {
-      type: Number,
-      default: 0
-    },
-    draftsResumes: {
-      type: Number,
-      default: 0
-    },
-    inProgressResumes: {
-      type: Number,
-      default: 0
-    },
-    totalViews: {
-      type: Number,
-      default: 0
-    },
-    totalDownloads: {
-      type: Number,
-      default: 0
-    },
-    averageATSScore: {
-      type: Number,
-      default: 0,
-      min: 0,
-      max: 100
-    },
-    bestATSScore: {
-      type: Number,
-      default: 0,
-      min: 0,
-      max: 100
-    },
-    lastActiveResume: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Resume'
-    },
-    lastActivity: {
-      type: Date,
-      default: Date.now
-    }
+    completedResumes: { type: Number, default: 0 },
+    draftsResumes: { type: Number, default: 0 },
+    inProgressResumes: { type: Number, default: 0 },
+    lastActiveResume: { type: mongoose.Schema.Types.ObjectId, ref: 'Resume' }
   },
 
   // Recent Activity Log
@@ -345,7 +340,7 @@ userSchema.virtual('storage.usagePercentage').get(function () {
 
 // ✅ KEEP ONLY VIRTUAL PROPERTY (removed duplicate method)
 userSchema.virtual('canUseAI').get(function () {
-  return this.aiCredits > 0 || this.plan !== 'free';
+  return this.credits > 0 || this.subscription.planId !== 'free';
 });
 
 userSchema.virtual('accountAgeDays').get(function () {
@@ -356,10 +351,10 @@ userSchema.virtual('accountAgeDays').get(function () {
 });
 
 userSchema.virtual('planStatus').get(function () {
-  if (this.subscriptionEnds && new Date() > this.subscriptionEnds) {
+  if (this.subscription.currentPeriodEnd && new Date() > this.subscription.currentPeriodEnd) {
     return 'expired';
   }
-  return this.plan;
+  return this.subscription.planId;
 });
 
 // ======================
@@ -409,11 +404,11 @@ userSchema.pre('save', function (next) {
   );
 
   // Update other flags based on usage
-  if (this.usage?.resumeCount > 0 && !this.flags.hasCreatedFirstResume) {
+  if (this.stats?.resumesCreated > 0 && !this.flags.hasCreatedFirstResume) {
     this.flags.hasCreatedFirstResume = true;
   }
 
-  if (this.usage?.aiUsageCount > 0 && !this.flags.hasUsedAI) {
+  if (this.stats?.aiCallsMade > 0 && !this.flags.hasUsedAI) {
     this.flags.hasUsedAI = true;
   }
 
@@ -468,8 +463,8 @@ userSchema.methods.comparePassword = async function (enteredPassword) {
       this.lastLogin = new Date();
 
       // Update usage stats
-      this.usage.loginCount = (this.usage.loginCount || 0) + 1;
-      this.dashboardStats.lastActivity = new Date();
+      this.stats.loginCount = (this.stats.loginCount || 0) + 1;
+      this.stats.lastActive = new Date();
 
       // Add login activity
       this.recentActivity = this.recentActivity || [];
@@ -557,8 +552,7 @@ userSchema.methods.updateResumeCount = async function () {
       isDeleted: { $ne: true }
     });
 
-    this.usage.resumeCount = count;
-    this.dashboardStats.totalResumes = count;
+    this.stats.resumesCreated = count;
 
     if (count > 0 && !this.flags.hasCreatedFirstResume) {
       this.flags.hasCreatedFirstResume = true;
@@ -570,7 +564,7 @@ userSchema.methods.updateResumeCount = async function () {
         .select('createdAt');
 
       if (latestResume) {
-        this.usage.lastResumeCreated = latestResume.createdAt;
+        this.stats.lastActive = latestResume.createdAt;
       }
     }
 
@@ -598,7 +592,7 @@ userSchema.methods.addActivity = async function (activity) {
       this.recentActivity = this.recentActivity.slice(0, 50);
     }
 
-    this.dashboardStats.lastActivity = new Date();
+    this.stats.lastActive = new Date();
     await this.save({ validateBeforeSave: false });
 
     return this;
@@ -636,13 +630,13 @@ userSchema.methods.updateDashboardStats = async function (resumes = []) {
       const latestResume = resumes.sort((a, b) =>
         new Date(b.updatedAt) - new Date(a.updatedAt)
       )[0];
-      stats.lastActiveResume = latestResume._id;
+      this.dashboardStats.lastActiveResume = latestResume._id;
     }
 
-    this.dashboardStats = { ...this.dashboardStats, ...stats };
+    this.stats = { ...this.stats, ...stats };
     await this.save({ validateBeforeSave: false });
 
-    return this.dashboardStats;
+    return this.stats;
 
   } catch (error) {
     console.error('Error updating dashboard stats:', error);
@@ -659,22 +653,22 @@ userSchema.methods.updateDashboardStats = async function (resumes = []) {
  * Consume AI credits
  */
 userSchema.methods.consumeAICredits = async function (amount = 1) {
-  if (this.plan === 'free') {
-    if (this.aiCredits < amount) {
+  if (this.subscription.planId === 'free') {
+    if (this.credits < amount) {
       throw new Error('Insufficient AI credits');
     }
-    this.aiCredits -= amount;
+    this.credits -= amount;
   }
 
-  this.usage.aiUsageCount = (this.usage.aiUsageCount || 0) + 1;
-  this.usage.lastAIAssisted = new Date();
+  this.stats.aiCallsMade = (this.stats.aiCallsMade || 0) + 1;
+  this.stats.lastActive = new Date();
 
   if (!this.flags.hasUsedAI) {
     this.flags.hasUsedAI = true;
   }
 
   await this.save({ validateBeforeSave: false });
-  return this.aiCredits;
+  return this.credits;
 };
 
 /**

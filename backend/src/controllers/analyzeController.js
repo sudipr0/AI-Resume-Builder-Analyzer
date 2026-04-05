@@ -1,7 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import Resume from '../models/Resume.js';
 import ResumeAnalysis from '../models/ResumeAnalysis.js';
-import { analyzeResume } from '../utils/aiService.js';
+import aiService from '../ai/ai.service.js';
 import ATSChecker from '../services/atsChecker.js';
 
 export const analyzeResumeController = asyncHandler(async (req, res) => {
@@ -19,7 +19,7 @@ export const analyzeResumeController = asyncHandler(async (req, res) => {
     fullText += `${resume.summary || ''}\n\n`;
 
     resume.experience?.forEach(exp => {
-        fullText += `${exp.position} at ${exp.company}\n`;
+        fullText += `${exp.position || exp.jobTitle || ''} at ${exp.company}\n`;
         fullText += `${exp.description || ''}\n`;
         exp.bullets?.forEach(b => fullText += `- ${b}\n`);
     });
@@ -29,8 +29,12 @@ export const analyzeResumeController = asyncHandler(async (req, res) => {
     });
 
     resume.skills?.forEach(cat => {
-        fullText += `${cat.category}:\n`;
-        cat.items?.forEach(item => fullText += `${item.name}\n`);
+        if (typeof cat === 'string') {
+            fullText += `${cat}\n`;
+        } else {
+            fullText += `${cat.category || ''}:\n`;
+            cat.items?.forEach(item => fullText += `${item.name || item}\n`);
+        }
     });
 
     // Determine assumed file format or default
@@ -40,10 +44,12 @@ export const analyzeResumeController = asyncHandler(async (req, res) => {
     const localAtsResult = ATSChecker.checkCompatibility(resume, assumedFormat, fullText);
 
     // Call the AI Service
-    const analysisResult = await analyzeResume(fullText, jobDescription);
+    const aiResponse = await aiService.analyzeResume(resume, jobDescription);
+    const analysisResult = aiResponse.data;
     
     // Blend the scores for a more robust ATS score
-    const finalAtsScore = Math.round((localAtsResult.score + analysisResult.atsScore) / 2);
+    const aiScore = analysisResult.atsScore?.score || analysisResult.score || 0;
+    const finalAtsScore = Math.round((localAtsResult.score + aiScore) / 2);
 
     // Create or update the analysis record
     let analysis = await ResumeAnalysis.findOne({ resumeId: resume._id });
@@ -63,18 +69,37 @@ export const analyzeResumeController = asyncHandler(async (req, res) => {
 
     // Map AI results and local ATS rules to DB schema
     analysis.atsScore = finalAtsScore;
-    analysis.matchScore = analysisResult.matchScore;
-    analysis.scores = analysisResult.scores;
-    analysis.keywords = analysisResult.keywords;
-    analysis.suggestions = [...analysisResult.suggestions, ...localAtsResult.warnings.map(w => ({
+    analysis.matchScore = analysisResult.keywordMatch?.matchPercentage || analysisResult.matchScore || 0;
+    analysis.scores = {
+        formatting: analysisResult.atsScore?.breakdown?.formatting || 0,
+        keywords: analysisResult.atsScore?.breakdown?.keywordMatch || 0,
+        experience: analysisResult.atsScore?.breakdown?.experience || 0,
+        skills: analysisResult.atsScore?.breakdown?.skills || 0,
+        achievements: analysisResult.atsScore?.breakdown?.achievements || 0
+    };
+    analysis.keywords = {
+        matched: analysisResult.keywordMatch?.matchedKeywords || [],
+        missing: analysisResult.keywordMatch?.missingKeywords || [],
+        suggested: analysisResult.keywordMatch?.criticalMissing || []
+    };
+    
+    const aiSuggestions = (analysisResult.suggestions || []).map(s => ({
+        section: s.section || 'general',
+        type: s.priority === 'high' ? 'critical' : 'tip',
+        message: s.title || s.description || s,
+        improvement: s.description || ''
+    }));
+
+    analysis.suggestions = [...aiSuggestions, ...localAtsResult.warnings.map(w => ({
         section: 'general',
         type: 'warning',
         message: w.message,
         improvement: w.suggestion
     }))];
-    analysis.strengths = analysisResult.strengths;
-    analysis.weaknesses = [...analysisResult.weaknesses, ...localAtsResult.issues.map(i => i.message)];
-    analysis.aiSummary = analysisResult.aiSummary;
+    
+    analysis.strengths = analysisResult.strengths || [];
+    analysis.weaknesses = [...(analysisResult.weaknesses || []), ...localAtsResult.issues.map(i => i.message)];
+    analysis.aiSummary = analysisResult.aiSummary || `Resume analysis completed with a score of ${finalAtsScore}%.`;
 
     await analysis.save();
 
@@ -85,6 +110,7 @@ export const analyzeResumeController = asyncHandler(async (req, res) => {
 
     res.status(200).json({
         success: true,
-        data: analysis
+        data: analysis,
+        provider: aiResponse.provider
     });
 });

@@ -289,53 +289,62 @@ const ExportManager = ({
     setIsExporting(true);
     setExportProgress(0);
 
-    // Simulate export progress
-    const progressInterval = setInterval(() => {
-      setExportProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(progressInterval);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 100);
-
     try {
-      // In production, this would call your actual export API
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      if (format === 'pdf') {
+        // For PDF, we need to send the HTML content to the backend
+        // We'll get the resume element by ID
+        const resumeElement = document.getElementById('resume-preview-content');
+        if (!resumeElement) {
+          throw new Error('Resume preview not found');
+        }
+
+        const htmlContent = resumeElement.innerHTML;
+        const resumeId = resumeData._id || 'temp';
+
+        setExportProgress(30);
+
+        const response = await apiService.post(`/export/${resumeId}/pdf`, {
+          htmlContent
+        }, {
+          responseType: 'blob'
+        });
+
+        setExportProgress(80);
+
+        const url = window.URL.createObjectURL(new Blob([response]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `${resumeData.title || 'resume'}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+      } else {
+        // Fallback for other formats (keep the mock for now)
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        triggerDownload(format);
+      }
+
+      setExportProgress(100);
 
       // Add to export history
       const newExport = {
         id: Date.now(),
         format,
         date: new Date(),
-        size: format === 'pdf' ? '~250KB' : format === 'png' ? '~1MB' : '~150KB',
+        size: format === 'pdf' ? '~250KB' : '~150KB',
         status: 'success',
         previewUrl: '#',
         settings: { ...exportSettings }
       };
 
-      setExportHistory(prev => [newExport, ...prev.slice(0, 9)]); // Keep last 10
-
-      // Save to selected cloud services
-      if (selectedCloudServices.length > 0) {
-        await handleCloudSave(selectedCloudServices, format);
-      }
-
+      setExportHistory(prev => [newExport, ...prev.slice(0, 9)]);
       toast.success(`${EXPORT_SERVICES[format]?.name || format.toUpperCase()} exported successfully!`);
-
-      if (onExport) {
-        onExport(format);
-      }
-
-      // Trigger download
-      triggerDownload(format);
 
     } catch (error) {
       toast.error('Export failed. Please try again.');
       console.error('Export error:', error);
     } finally {
-      clearInterval(progressInterval);
       setIsExporting(false);
       setExportProgress(0);
     }

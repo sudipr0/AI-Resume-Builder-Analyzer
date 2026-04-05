@@ -1,60 +1,82 @@
 // backend/src/ai/ai.prompts.js
 
+/**
+ * CORE IDENTITY:
+ * You are ResumeAI, an expert resume builder and career coach assistant 
+ * embedded inside an AI-powered resume platform. Your job is to help users 
+ * create, optimize, and analyze professional resumes that pass ATS systems 
+ * and impress hiring managers.
+ */
+
+export const RESUME_AI_SYSTEM_PROMPT = `
+You are ResumeAI, an expert resume builder and career coach assistant.
+Your job is to help users create, optimize, and analyze professional resumes 
+that pass ATS systems and impress hiring managers.
+
+CORE IDENTITY:
+- You are precise, encouraging, and data-driven.
+- You speak like a senior career coach who has reviewed 10,000+ resumes.
+- You never pad, never hallucinate experience, never add fake metrics.
+- You always ask before assuming the user's industry, seniority, or target role.
+
+STRICT RULES:
+1. Never invent job titles, companies, dates, or metrics.
+2. Never add skills the user hasn't mentioned.
+3. Never use generic buzzwords: "results-driven", "passionate", "detail-oriented", 
+   "team player", "hard-working", "go-getter", "think outside the box."
+4. Always preserve the user's authentic voice when enhancing — 
+   upgrade vocabulary, not personality.
+5. If a resume has legal/medical/sensitive info visible (SSN, DOB, 
+   photo), flag it and recommend removal.
+6. Keep all output in the user's chosen language.
+7. Always output valid JSON in code blocks when requested.
+`;
+
 export const EXTRACT_RESUME_TEXT_PROMPT = `
-Extract and structure resume data from raw text with high accuracy.
+${RESUME_AI_SYSTEM_PROMPT}
+
+TEXT EXTRACTOR CAPABILITY:
+Extract and structure raw resume text into a strictly valid JSON format.
 
 RAW TEXT:
 {rawText}
 
-Parse into structured JSON format:
+EXTRACT FORMAT:
 {
-  "personalInfo": {
-    "fullName": "",
+  "personal": {
+    "name": "",
     "email": "",
     "phone": "",
     "location": "",
     "linkedin": "",
-    "github": "",
     "portfolio": "",
-    "summary": ""
+    "job_title": ""
   },
+  "summary": "",
   "experience": [
     {
       "title": "",
       "company": "",
       "location": "",
-      "startDate": "",
-      "endDate": "",
-      "current": false,
-      "description": ["", ""],
-      "achievements": ["", ""]
+      "start_date": "",
+      "end_date": "",
+      "bullets": []
     }
   ],
   "education": [
     {
       "degree": "",
       "institution": "",
-      "location": "",
-      "startDate": "",
-      "endDate": "",
-      "gpa": null,
-      "description": ""
+      "year": "",
+      "gpa": ""
     }
   ],
   "skills": {
-    "technical": ["", ""],
-    "soft": ["", ""],
-    "tools": ["", ""],
-    "languages": ["", ""]
+    "technical": [],
+    "soft": [],
+    "tools": [],
+    "languages": []
   },
-  "projects": [
-    {
-      "name": "",
-      "description": "",
-      "technologies": ["", ""],
-      "link": ""
-    }
-  ],
   "certifications": [
     {
       "name": "",
@@ -62,622 +84,185 @@ Parse into structured JSON format:
       "date": ""
     }
   ],
-  "languages": [
+  "projects": [
     {
       "name": "",
-      "proficiency": "basic|conversational|fluent|native"
+      "description": "",
+      "technologies": []
+    }
+  ],
+  "awards": [
+    {
+      "name": "",
+      "issuer": "",
+      "date": ""
     }
   ]
 }
 
-Rules:
-- Extract dates in YYYY-MM-DD format
-- Detect current positions (present/current keywords)
-- Identify company names and job titles
-- Separate technical skills from soft skills
-- Extract email and phone with regex
-- Preserve achievement metrics and numbers
-- Handle multiple date formats
-- Detect incomplete or missing fields
-`;
-
-export const BUILD_RESUME_PROMPT = `
-Create a professional, ATS-optimized resume from provided information.
-
-USER DATA:
-{userData}
-JOB TITLE: {jobTitle}
-INDUSTRY: {industry}
-TEMPLATE: {template}
-
-Generate complete resume with:
-
-1. PROFESSIONAL SUMMARY:
-Write 3-4 sentences highlighting:
-- Years of experience
-- Key achievements with metrics
-- Top skills relevant to role
-- Career goals
-- Industry keywords
-
-2. SKILLS SECTION:
-Organize skills into categories:
-- Technical Skills (programming, tools, methodologies)
-- Soft Skills (leadership, communication, teamwork)
-- Certifications (if any)
-- Languages (if applicable)
-
-3. EXPERIENCE SECTION:
-For each role, create 3-5 bullet points:
-- Start with strong action verbs (Led, Managed, Created, Improved, Achieved)
-- Include specific metrics (%, numbers, time saved, revenue)
-- Show impact and results
-- Use industry keywords
-- Quantify achievements
-
-4. EDUCATION SECTION:
-Format with:
-- Degree and field
-- Institution name
-- Graduation year
-- GPA (if 3.5+)
-- Relevant coursework (optional)
-
-5. PROJECTS SECTION (if applicable):
-- Project name
-- Technologies used
-- Key features/achievements
-- Live link or GitHub
-
-Return as JSON:
-{
-  "summary": "Generated summary text",
-  "skills": {
-    "technical": ["skill1", "skill2"],
-    "soft": ["skill1", "skill2"],
-    "tools": ["tool1", "tool2"]
-  },
-  "experience": [
-    {
-      "title": "Job Title",
-      "company": "Company Name",
-      "dates": "Start - End",
-      "achievements": ["Bullet 1", "Bullet 2"]
-    }
-  ],
-  "education": [
-    {
-      "degree": "Degree Name",
-      "institution": "University",
-      "year": "2024",
-      "gpa": "3.8"
-    }
-  ],
-  "optimizationTips": [
-    "Tip 1 for ATS",
-    "Tip 2 for keywords"
-  ]
-}
+Rules for extraction:
+- Use ONLY the provided JSON structure.
+- Preserve the user's original wording — do NOT rewrite during extraction.
+- If a field is ambiguous, pick the most likely value and do NOT add flags inside the JSON values.
+- If a section is missing, use null or empty array [].
+- Remove all formatting artifacts (e.g., "|", "•", "—") from raw text.
+- Normalize dates to "MMM YYYY" (e.g., "Jan 2022") or "Present".
+- Group skills into the 4 provided categories based on context.
 `;
 
 export const ANALYZE_RESUME_PROMPT = `
-Perform comprehensive analysis of resume for ATS and hiring success.
+${RESUME_AI_SYSTEM_PROMPT}
+
+JOB DESCRIPTION ANALYZER CAPABILITY:
+Analyze a resume against a job description.
 
 RESUME DATA:
 {resumeData}
-JOB DESCRIPTION (if provided): {jobDescription}
-INDUSTRY: {industry}
 
-Provide analysis in JSON format:
+JOB DESCRIPTION:
+{jobDescription}
 
+JD ANALYSIS FORMAT:
 {
-  "scores": {
-    "overall": 85,
-    "ats": {
-      "score": 80,
-      "grade": "B",
-      "details": {
-        "keywords": 75,
-        "formatting": 90,
-        "structure": 85
-      }
-    },
-    "content": {
-      "completeness": 90,
-      "relevance": 85,
-      "clarity": 80
-    },
-    "impact": {
-      "achievements": 70,
-      "metrics": 60,
-      "actionVerbs": 80
-    }
+  "jd_analysis": {
+    "role_title": "",
+    "company": "",
+    "seniority": "junior | mid | senior | lead | executive",
+    "must_have_skills": [],
+    "nice_to_have_skills": [],
+    "key_responsibilities": [],
+    "ats_keywords": [],
+    "tone": "formal | startup | technical | creative",
+    "red_flags": []
   },
-  
-  "strengths": [
-    {
-      "area": "Strong work experience",
-      "details": "5+ years in relevant field",
-      "impact": "High"
-    }
-  ],
-  
-  "weaknesses": [
-    {
-      "area": "Missing metrics",
-      "details": "No quantifiable achievements",
-      "severity": "high",
-      "suggestion": "Add numbers: 'Increased sales by 30%'"
-    }
-  ],
-  
-  "keywordAnalysis": {
-    "found": ["keyword1", "keyword2"],
-    "missing": ["keyword1", "keyword2"],
-    "density": {
-      "optimal": ["keyword1"],
-      "underused": ["keyword2"],
-      "overused": ["keyword3"]
-    }
-  },
-  
-  "formattingIssues": [
-    {
-      "issue": "Complex tables",
-      "severity": "high",
-      "fix": "Use simple bullet points"
-    }
-  ],
-  
-  "contentGaps": [
-    {
-      "section": "Skills",
-      "missing": ["Cloud Computing", "Python"],
-      "priority": "high"
-    }
-  ],
-  
-  "improvements": [
-    {
-      "priority": 1,
-      "category": "Keywords",
-      "action": "Add industry keywords",
-      "specific": "Add 'Agile Methodology' to skills",
-      "impact": "+15 ATS score"
-    },
-    {
-      "priority": 2,
-      "category": "Achievements",
-      "action": "Quantify results",
-      "specific": "Add metrics to bullet points",
-      "impact": "+10 engagement"
-    }
-  ],
-  
-  "atsReadiness": {
-    "parseable": true,
-    "estimatedPassRate": 85,
-    "issues": [],
-    "recommendations": []
-  },
-  
-  "sectionAnalysis": {
-    "summary": {
-      "score": 80,
-      "feedback": "",
-      "improvedVersion": ""
-    },
-    "experience": {
-      "score": 75,
-      "feedback": "",
-      "improvedBullets": []
-    },
-    "skills": {
-      "score": 85,
-      "feedback": "",
-      "recommendedSkills": []
-    },
-    "education": {
-      "score": 90,
-      "feedback": ""
-    }
+  "match_report": {
+    "ats_score": 0,
+    "keywords_present": [],
+    "keywords_missing": [],
+    "top_improvements": [],
+    "suggested_summary_rewrite": ""
   }
 }
+
+Rules for analysis:
+- ATS Match Score should be between 0–100.
+- Suggested summary rewrite: 1 paragraph, tailored to this JD.
 `;
 
-export const OPTIMIZE_FOR_ATS_PROMPT = `
-Optimize resume for ATS (Applicant Tracking System) compatibility.
+export const BUILD_RESUME_PROMPT = `
+${RESUME_AI_SYSTEM_PROMPT}
 
-RESUME: {resumeData}
-TARGET ROLE: {role}
-JOB KEYWORDS: {keywords}
+RESUME ENHANCER CAPABILITY:
+Improve a resume or specific section using professional standards.
 
-Provide optimization strategies:
+USER DATA:
+{userData}
 
+BULLET POINT FORMULA:
+[Strong Action Verb] + [What you did] + [How / Tool Used] + [Measurable Result or Scale]
+
+ACTION VERB BANK:
+Impact: Drove, Accelerated, Amplified, Boosted, Grew
+Built: Engineered, Architected, Developed, Launched, Shipped
+Led: Spearheaded, Directed, Championed, Orchestrated, Unified
+Improved: Optimized, Streamlined, Refactored, Automated, Modernized
+Analyzed: Diagnosed, Evaluated, Benchmarked, Audited, Mapped
+
+Return JSON with enhanced content:
 {
-  "keywordOptimization": {
-    "critical": [
-      {
-        "keyword": "Python",
-        "currentCount": 2,
-        "targetCount": 5,
-        "where": "Add to skills and experience sections"
-      }
-    ],
-    "recommended": [],
-    "optional": []
-  },
-  
-  "formatOptimization": {
-    "issues": [
-      {
-        "problem": "Tables used",
-        "fix": "Convert to bullet points",
-        "priority": "high"
-      }
-    ],
-    "bestPractices": [
-      "Use standard fonts (Arial, Calibri)",
-      "Avoid images and graphics",
-      "Use .docx or PDF format",
-      "Clear section headers"
-    ]
-  },
-  
-  "contentOptimization": {
-    "sectionOrder": ["summary", "skills", "experience", "education"],
-    "bulletsPerJob": 4,
-    "resumeLength": "1-2 pages",
-    "dateFormat": "MM/YYYY"
-  },
-  
-  "improvedVersions": {
-    "summary": "Optimized summary with keywords",
-    "skills": "Categorized skills with proficiency levels",
-    "experience": "Enhanced bullet points with metrics"
-  },
-  
-  "atsScore": {
-    "current": 60,
-    "potential": 90,
-    "improvement": 30
-  }
-}
-`;
-
-export const GENERATE_BULLET_POINTS_PROMPT = `
-Create powerful, achievement-focused bullet points for resume.
-
-ROLE: {role}
-RESPONSIBILITIES: {responsibilities}
-ACHIEVEMENTS: {achievements}
-INDUSTRY: {industry}
-COMPANY: {company}
-
-Generate 5 bullet points following STAR method:
-
-For each bullet point:
-1. Situation: Brief context
-2. Task: Your responsibility
-3. Action: What you did (action verb)
-4. Result: Measurable outcome
-
-Format each bullet as:
-"Action Verb + Task + Result + Metric"
-
-Examples:
-✓ "Led team of 8 developers to deliver project 2 weeks ahead of schedule, saving $50K"
-✓ "Increased customer satisfaction by 35% through implementing new feedback system"
-✓ "Reduced processing time by 60% by automating manual workflows"
-
-Provide:
-{
-  "bullets": [
-    {
-      "text": "Generated bullet point text",
-      "actionVerb": "Led",
-      "metric": "35% increase",
-      "impact": "High",
-      "starMethod": {
-        "situation": "",
-        "task": "",
-        "action": "",
-        "result": ""
-      }
-    }
-  ],
-  "actionVerbsUsed": ["Led", "Created", "Improved"],
-  "metricsIncluded": ["%", "$$$", "time"],
-  "qualityScore": 85
-}
-`;
-
-export const MATCH_RESUME_TO_JOB_PROMPT = `
-Match resume to job description with detailed analysis.
-
-RESUME: {resumeData}
-JOB DESCRIPTION: {jobDescription}
-COMPANY: {company}
-
-Provide match analysis:
-
-{
-  "matchScore": 85,
-  "breakdown": {
-    "skills": 90,
-    "experience": 80,
-    "education": 100,
-    "keywords": 70
-  },
-  
-  "matchedKeywords": [
-    {
-      "keyword": "Python",
-      "inResume": true,
-      "frequency": 5,
-      "importance": "critical"
-    }
-  ],
-  
-  "missingKeywords": [
-    {
-      "keyword": "AWS",
-      "importance": "critical",
-      "suggestion": "Add to skills section"
-    }
-  ],
-  
-  "experienceGap": {
-    "required": "5 years",
-    "current": "3 years",
-    "bridging": "Highlight relevant projects and achievements"
-  },
-  
-  "recommendations": [
-    {
-      "type": "keyword",
-      "action": "Add AWS to skills section",
-      "impact": "+15 match score"
-    },
-    {
-      "type": "experience",
-      "action": "Highlight cloud projects",
-      "impact": "+10 match score"
-    }
-  ],
-  
-  "tailoredSummary": "Customized summary for this role",
-  "highlightedExperience": [
-    "Experience point most relevant to job"
-  ]
-}
-`;
-
-export const SUGGEST_IMPROVEMENTS_PROMPT = `
-Provide intelligent suggestions to improve resume based on industry standards.
-
-RESUME: {resumeData}
-INDUSTRY: {industry}
-EXPERIENCE_LEVEL: {level}
-
-Provide suggestions:
-
-{
-  "quickWins": [
-    {
-      "title": "Add metrics to experience",
-      "effort": "low",
-      "impact": "high",
-      "action": "Add numbers: 'Increased X by Y%'"
-    }
-  ],
-  
-  "contentEnhancements": [
-    {
-      "section": "summary",
-      "current": "Current summary text",
-      "suggested": "Improved summary with keywords",
-      "reason": "More engaging and includes metrics"
-    }
-  ],
-  
-  "skillGaps": [
-    {
-      "skill": "Data Analysis",
-      "importance": "high",
-      "howToAcquire": "Online course or certification"
-    }
-  ],
-  
-  "formattingTips": [
-    "Use consistent date format (MM/YYYY)",
-    "Align all bullet points",
-    "Use action verbs consistently"
-  ],
-  
-  "atsTips": [
-    "Include keywords from job description",
-    "Avoid graphics and images",
-    "Use standard section headers"
-  ]
-}
-`;
-
-export const SMART_EXTRACT_PROMPT = `
-Extract resume data with intelligence and handle edge cases.
-
-RAW TEXT: {rawText}
-
-Intelligent extraction rules:
-
-1. EMAIL EXTRACTION:
-   - Pattern: [a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}
-   - Also detect: "Email:" prefixes
-   - Handle obfuscated emails
-
-2. PHONE EXTRACTION:
-   - US: (xxx) xxx-xxxx, xxx-xxx-xxxx
-   - International: +xx xxx xxx xxxx
-   - Handle formats with extensions
-
-3. NAME EXTRACTION:
-   - Usually first line of resume
-   - Handle middle names and suffixes
-   - Detect name from email if missing
-
-4. DATE PARSING:
-   - Format: MM/YYYY, MMM YYYY, Month YYYY
-   - Detect "Present", "Current", "Now"
-   - Handle date ranges
-
-5. COMPANY DETECTION:
-   - Usually after job title
-   - Detect "at", "at Company Name"
-   - Recognize common company names
-
-6. SKILLS EXTRACTION:
-   - Technical: programming languages, tools
-   - Soft skills: communication, leadership
-   - Detect bulleted or comma-separated lists
-
-Return extracted data with confidence scores:
-{
-  "extractedData": {
-    "personalInfo": {
-      "fullName": {"value": "", "confidence": 0.95},
-      "email": {"value": "", "confidence": 0.99}
-    }
-  },
-  "unresolved": ["Items that couldn't be parsed"],
-  "suggestions": ["Manual review needed for certain sections"]
+  "summary": "",
+  "experience": [...],
+  "skills": {...},
+  "enhancements_made": []
 }
 `;
 
 export const SCORE_RESUME_PROMPT = `
-Score resume against hiring benchmarks.
+${RESUME_AI_SYSTEM_PROMPT}
 
-RESUME: {resumeData}
-ROLE_LEVEL: {level}
-INDUSTRY: {industry}
+ATS OPTIMIZER CAPABILITY:
+Score the resume on these 8 dimensions (each 0–100):
+1. Keyword Density
+2. Format Cleanliness
+3. Section Structure
+4. Verb Strength
+5. Quantification
+6. Length
+7. Contact Info
+8. Consistency
 
-Calculate scores:
+RESUME:
+{resumeData}
 
+Output JSON:
 {
+  "overall_ats_score": 0,
   "dimensions": {
-    "content": {
-      "score": 85,
-      "weight": 30,
-      "breakdown": {
-        "relevance": 90,
-        "completeness": 80,
-        "depth": 85
-      }
-    },
-    "formatting": {
-      "score": 90,
-      "weight": 15,
-      "breakdown": {
-        "layout": 95,
-        "readability": 90,
-        "consistency": 85
-      }
-    },
-    "achievements": {
-      "score": 75,
-      "weight": 25,
-      "breakdown": {
-        "metrics": 70,
-        "actionVerbs": 80,
-        "impact": 75
-      }
-    },
-    "keywords": {
-      "score": 80,
-      "weight": 30,
-      "breakdown": {
-        "industryTerms": 85,
-        "roleSpecific": 80,
-        "density": 75
-      }
-    }
+    "keyword_density": 0,
+    "format_cleanliness": 0,
+    "section_structure": 0,
+    "verb_strength": 0,
+    "quantification": 0,
+    "length": 0,
+    "contact_info": 0,
+    "consistency": 0
   },
-  
-  "benchmarks": {
-    "top10": "95+",
-    "top25": "85+",
-    "average": "70-85",
-    "needsImprovement": "<70"
-  },
-  
-  "ranking": {
-    "percentile": 82,
-    "category": "good"
-  },
-  
-  "feedback": {
-    "positive": ["Strength 1", "Strength 2"],
-    "constructive": ["Area to improve 1", "Area 2"],
-    "critical": ["Critical issue 1"]
-  }
+  "top_3_action_items": []
 }
 `;
 
-export const GENERATE_FINAL_RESUME_PROMPT = `
-Create final optimized resume with all improvements applied.
+export const GENERATE_SUMMARY_PROMPT = `
+${RESUME_AI_SYSTEM_PROMPT}
 
-ORIGINAL: {originalData}
-IMPROVEMENTS: {improvements}
-TEMPLATE: {template}
-FORMAT: {format}
+PROFESSIONAL SUMMARY GENERATOR CAPABILITY:
+Generate a 3-sentence summary using this structure:
+Sentence 1 — Who you are: "[Seniority] [Role] with [X] years in [Industry]"
+Sentence 2 — What you do best: Top 2–3 skills or achievements
+Sentence 3 — What you're seeking: Tailored to the target role or company
 
-Generate complete resume with:
+RESUME DATA:
+{resumeData}
+TARGET ROLE: {targetRole}
 
-1. HEADER:
-   - Full Name (large, bold)
-   - Title (professional headline)
-   - Contact info (email, phone, location, LinkedIn, GitHub)
+Keep it:
+- Under 60 words
+- In first person implied (no "I")
+- Keyword-rich but natural
 
-2. PROFESSIONAL SUMMARY:
-   - Optimized version with keywords
-   - Includes metrics and achievements
-   - 3-4 sentences
-
-3. SKILLS SECTION:
-   - Categorized (Technical, Soft, Tools)
-   - Proficiency levels indicated
-   - Industry keywords highlighted
-
-4. WORK EXPERIENCE:
-   - Reverse chronological order
-   - 3-5 bullet points per role
-   - Each bullet: action verb + metric + result
-   - Consistent date format
-
-5. EDUCATION:
-   - Degree and institution
-   - Graduation year
-   - GPA (if 3.5+)
-   - Honors and awards
-
-6. PROJECTS (if applicable):
-   - Project name and technologies
-   - Key features and results
-   - Links (GitHub, live demo)
-
-Return formatted resume ready for:
-- PDF export
-- DOCX download
-- HTML preview
-- JSON data
-
+Return JSON:
 {
-  "html": "<div>Complete HTML resume</div>",
-  "data": { },
-  "metadata": {
-    "wordCount": 450,
-    "pages": 1,
-    "atsScore": 92,
-    "keywords": ["keyword1", "keyword2"]
-  }
+  "summary": ""
 }
 `;
+
+export const COVER_LETTER_PROMPT = `
+${RESUME_AI_SYSTEM_PROMPT}
+
+COVER LETTER WRITER CAPABILITY:
+Generate a cover letter with this structure:
+Para 1 — Hook: Specific reason you're excited about THIS company/role
+Para 2 — Proof: Your single most relevant achievement (with metric)
+Para 3 — Fit: How your skills map to their top 2 stated needs
+Para 4 — Close: Confident call to action, no begging
+
+RESUME:
+{resumeData}
+JOB DESCRIPTION:
+{jobDescription}
+
+Tone: Match the company's tone from the JD (formal vs. startup).
+Length: 250–320 words maximum.
+
+Return JSON:
+{
+  "cover_letter": ""
+}
+`;
+
+// Remaining placeholders for compatibility with AIService
+export const OPTIMIZE_FOR_ATS_PROMPT = SCORE_RESUME_PROMPT;
+export const GENERATE_BULLET_POINTS_PROMPT = BUILD_RESUME_PROMPT;
+export const MATCH_RESUME_TO_JOB_PROMPT = ANALYZE_RESUME_PROMPT;
+export const SUGGEST_IMPROVEMENTS_PROMPT = ANALYZE_RESUME_PROMPT;
+export const SMART_EXTRACT_PROMPT = EXTRACT_RESUME_TEXT_PROMPT;
+export const GENERATE_FINAL_RESUME_PROMPT = BUILD_RESUME_PROMPT;

@@ -94,8 +94,9 @@ const ShareResume = () => {
     };
 
     const handleDownloadQRCode = () => {
-        // In a real app, you would generate and download QR code
-        toast.success('QR code downloaded!');
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(shareUrl)}`;
+        window.open(qrUrl, '_blank');
+        toast.success('QR code opened for download!');
     };
 
     const handleShareToSocial = (platform) => {
@@ -298,16 +299,23 @@ const ShareResume = () => {
                                         </div>
 
                                         <div className="text-center">
-                                            <div className="inline-block p-8 bg-white border-2 border-gray-200 rounded-2xl mb-6">
-                                                {/* QR Code Placeholder - In real app, use a QR code library */}
-                                                <div className="w-48 h-48 bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg flex items-center justify-center">
-                                                    <div className="relative">
-                                                        <div className="w-40 h-40 bg-white border-4 border-gray-900 rounded-lg"></div>
-                                                        <div className="absolute inset-0 flex items-center justify-center">
-                                                            <QrCode className="w-24 h-24 text-gray-900" />
+                                            <div className="inline-block p-8 bg-white border-2 border-gray-200 rounded-2xl mb-6 shadow-sm">
+                                                {qrCodeData ? (
+                                                    <div className="relative group">
+                                                        <img
+                                                            src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrCodeData)}`}
+                                                            alt="Resume QR Code"
+                                                            className="w-48 h-48 rounded-lg"
+                                                        />
+                                                        <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                                                            <QrCode className="w-8 h-8 text-blue-600 bg-white p-1 rounded shadow-lg" />
                                                         </div>
                                                     </div>
-                                                </div>
+                                                ) : (
+                                                    <div className="w-48 h-48 bg-gray-100 rounded-lg animate-pulse flex items-center justify-center">
+                                                        <QrCode className="w-12 h-12 text-gray-300" />
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <div className="flex flex-col sm:flex-row gap-3 justify-center">

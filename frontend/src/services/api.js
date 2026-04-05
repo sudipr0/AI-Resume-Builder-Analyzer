@@ -479,12 +479,6 @@ const resumeService = {
 
       logger.info('Creating resume with title:', resumeData.title);
 
-      // Log the payload for debugging
-      console.log('📦 Creating resume with data:', JSON.stringify(resumeData, null, 2));
-
-      // Ensure templateSettings has valid values
-      const validFonts = ["Roboto", "Inter", "Montserrat", "Open Sans", "Lato", "Poppins", "Merriweather"];
-
       // Create templateSettings with defaults if not provided
       const templateSettings = resumeData.templateSettings || {
         templateName: resumeData.template || 'modern',
@@ -503,15 +497,6 @@ const resumeService = {
         layout: 'single-column'
       };
 
-      // Capitalize font name if it exists
-      if (templateSettings.font) {
-        const font = templateSettings.font.charAt(0).toUpperCase() +
-          templateSettings.font.slice(1).toLowerCase();
-        templateSettings.font = validFonts.includes(font) ? font : "Roboto";
-      } else {
-        templateSettings.font = "Roboto";
-      }
-
       const payload = {
         title: resumeData.title || 'My Resume',
         summary: resumeData.summary || '',
@@ -520,7 +505,13 @@ const resumeService = {
           lastName: resumeData.personalInfo?.lastName || '',
           email: resumeData.personalInfo?.email || '',
           phone: resumeData.personalInfo?.phone || '',
-          location: resumeData.personalInfo?.location || ''
+          location: resumeData.personalInfo?.location || '',
+          jobTitle: resumeData.personalInfo?.jobTitle || '',
+          linkedin: resumeData.personalInfo?.linkedin || '',
+          github: resumeData.personalInfo?.github || '',
+          website: resumeData.personalInfo?.website || '',
+          portfolio: resumeData.personalInfo?.portfolio || '',
+          photoUrl: resumeData.personalInfo?.photoUrl || ''
         },
         experience: Array.isArray(resumeData.experience) ? resumeData.experience : [],
         education: Array.isArray(resumeData.education) ? resumeData.education : [],
@@ -547,14 +538,6 @@ const resumeService = {
       return created;
     } catch (error) {
       logger.error('Failed to create resume:', error);
-
-      if (error.response?.status === 400) {
-        console.error('🔍 Server validation error:', error.response.data);
-        const errors = error.response.data?.errors ||
-          error.response.data?.message ||
-          'Invalid resume data';
-        throw new Error(Array.isArray(errors) ? errors.join(', ') : errors);
-      }
       throw error;
     }
   },
@@ -564,22 +547,29 @@ const resumeService = {
     try {
       logger.info(`Updating resume: ${id}`);
 
-      // Handle templateSettings if present
-      let templateSettings = resumeData.templateSettings;
-      if (templateSettings) {
-        const validFonts = ["Roboto", "Inter", "Montserrat", "Open Sans", "Lato", "Poppins", "Merriweather"];
-        if (templateSettings.font) {
-          const font = templateSettings.font.charAt(0).toUpperCase() +
-            templateSettings.font.slice(1).toLowerCase();
-          templateSettings.font = validFonts.includes(font) ? font : "Roboto";
-        }
-      }
+      // Ensure personalInfo fields are correctly mapped if they exist in resumeData
+      const personalInfo = resumeData.personalInfo ? {
+        firstName: resumeData.personalInfo.firstName || '',
+        lastName: resumeData.personalInfo.lastName || '',
+        email: resumeData.personalInfo.email || '',
+        phone: resumeData.personalInfo.phone || '',
+        location: resumeData.personalInfo.location || '',
+        jobTitle: resumeData.personalInfo.jobTitle || '',
+        linkedin: resumeData.personalInfo.linkedin || '',
+        github: resumeData.personalInfo.github || '',
+        website: resumeData.personalInfo.website || '',
+        portfolio: resumeData.personalInfo.portfolio || '',
+        photoUrl: resumeData.personalInfo.photoUrl || ''
+      } : undefined;
 
       const payload = {
         ...resumeData,
-        templateSettings,
         updatedAt: new Date().toISOString()
       };
+      
+      if (personalInfo) {
+        payload.personalInfo = personalInfo;
+      }
 
       logger.api('PUT /resumes', { id });
 

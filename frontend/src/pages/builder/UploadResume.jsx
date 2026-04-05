@@ -11,7 +11,7 @@ import api from '../../services/axiosConfig';
 // Icons
 import {
   Upload, FileText, X, Check, AlertCircle,
-  FileType, FileSearch, Clock, Shield
+  FileType, FileSearch, Clock, Shield, ChevronRight
 } from 'lucide-react';
 
 const UploadResume = () => {
@@ -64,35 +64,28 @@ const UploadResume = () => {
     setIsProcessing(true);
 
     try {
-      // Create FormData to send the file
       const formData = new FormData();
       formData.append('resumeFile', uploadedFile);
 
-      // API call to extract data
       const response = await api.post('/extract/resume', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      const result = response.data;
-
-      if (!result.success) {
-          throw new Error(result.message || 'Failed to extract resume data');
+      if (!response.data.success) {
+          throw new Error(response.data.message || 'Failed to extract resume data');
       }
 
-      setExtractedData(result.data);
+      setExtractedData(response.data.extractedData);
       toast.success('Resume processed successfully!');
       setShowPreview(true);
     } catch (error) {
       console.error('Upload error:', error);
-      toast.error(error.message || 'Failed to process resume. Please try again or use the builder directly.');
+      toast.error(error.message || 'Failed to process resume');
     } finally {
       setIsUploading(false);
+      setIsProcessing(false);
     }
   };
-
-
 
   const handleContinueToBuilder = async () => {
     if (!extractedData) return;
@@ -100,34 +93,54 @@ const UploadResume = () => {
     setIsProcessing(true);
 
     try {
-      // Create resume with extracted data
-      const resumeData = {
+      // MAP EXTRACTED DATA TO RESUME SCHEMA
+      const mappedData = {
         title: `Imported: ${uploadedFile?.name?.replace(/\.[^/.]+$/, "") || 'Resume'}`,
+        personalInfo: {
+          firstName: extractedData.personal?.name?.split(' ')[0] || '',
+          lastName: extractedData.personal?.name?.split(' ').slice(1).join(' ') || '',
+          email: extractedData.personal?.email || '',
+          phone: extractedData.personal?.phone || '',
+          location: extractedData.personal?.location || '',
+          linkedin: extractedData.personal?.linkedin || '',
+          portfolio: extractedData.personal?.portfolio || ''
+        },
+        summary: extractedData.summary || '',
+        experience: Array.isArray(extractedData.experience) ? extractedData.experience.map(exp => ({
+          title: exp.title || '',
+          company: exp.company || '',
+          location: exp.location || '',
+          startDate: exp.start_date || '',
+          endDate: exp.end_date || '',
+          current: !exp.end_date || exp.end_date.toLowerCase().includes('present'),
+          bullets: Array.isArray(exp.bullets) ? exp.bullets : []
+        })) : [],
+        education: Array.isArray(extractedData.education) ? extractedData.education.map(edu => ({
+          degree: edu.degree || '',
+          institution: edu.institution || '',
+          endDate: edu.year || '',
+          gpa: edu.gpa || ''
+        })) : [],
+        skills: extractedData.skills ? Object.entries(extractedData.skills).map(([category, items]) => ({
+          category: category.charAt(0).toUpperCase() + category.slice(1),
+          items: Array.isArray(items) ? items.map(name => ({ name, level: 3 })) : []
+        })) : [],
+        projects: Array.isArray(extractedData.projects) ? extractedData.projects.map(p => ({
+          name: p.name || p || '',
+          description: p.description || ''
+        })) : [],
+        certifications: Array.isArray(extractedData.certifications) ? extractedData.certifications.map(c => ({
+          name: c.name || c || '',
+          issuer: c.issuer || ''
+        })) : [],
         template: 'modern',
-        status: 'draft',
-        imported: true,
-        importSource: uploadedFile?.type,
-        importDate: new Date().toISOString(),
-        ...extractedData,
-        settings: {
-          template: 'modern',
-          color: '#3b82f6',
-          font: 'inter',
-          fontSize: 'medium'
-        }
+        status: 'draft'
       };
 
-      const newResume = await createResume(resumeData);
-
-      if (newResume?._id) {
-        toast.success('Resume imported successfully!');
-        navigate(`/builder/edit/${newResume._id}`);
-      } else {
-        throw new Error('Failed to create resume');
-      }
+      navigate('/builder/new', { state: { importedData: mappedData } });
     } catch (error) {
-      console.error('Builder creation error:', error);
-      toast.error('Failed to create resume from upload');
+      console.error('Mapping error:', error);
+      toast.error('Error preparing data for builder');
     } finally {
       setIsProcessing(false);
     }
@@ -141,11 +154,8 @@ const UploadResume = () => {
   const handleDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
-
     const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      handleFileSelect({ target: { files: [files[0]] } });
-    }
+    if (files.length > 0) handleFileSelect({ target: { files: [files[0]] } });
   };
 
   return (
@@ -164,7 +174,7 @@ const UploadResume = () => {
               Upload Your Resume
             </h1>
             <p className="text-gray-600 max-w-2xl mx-auto">
-              Upload your existing resume and we'll extract the information for you to edit and improve.
+              Upload your existing resume and ResumeAI will extract the information for you to edit and improve.
             </p>
           </motion.div>
 
@@ -176,7 +186,7 @@ const UploadResume = () => {
             className="mb-8"
           >
             <div
-              className={`border-2 border-dashed rounded-3xl p-8 text-center transition-all duration-300 ${uploadedFile ? 'border-blue-500 bg-blue-50/30' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50/10'}`}
+              className={`border-2 border-dashed rounded-3xl p-8 text-center transition-all duration-300 cursor-pointer ${uploadedFile ? 'border-blue-500 bg-blue-50/30' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50/10'}`}
               onDragOver={handleDragOver}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
@@ -200,7 +210,7 @@ const UploadResume = () => {
                     <div className="text-left">
                       <p className="font-semibold text-gray-900">{uploadedFile.name}</p>
                       <p className="text-sm text-gray-600">
-                        {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB • {uploadedFile.type.split('/')[1].toUpperCase()}
+                        {(uploadedFile.size / 1024 / 1024).toFixed(2)} MB • {uploadedFile.type.split('/')[1]?.toUpperCase() || 'FILE'}
                       </p>
                     </div>
                   </div>
@@ -231,7 +241,6 @@ const UploadResume = () => {
               )}
             </div>
 
-            {/* Upload Button */}
             {uploadedFile && !isUploading && !extractedData && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -244,12 +253,11 @@ const UploadResume = () => {
                   className="w-full py-3 px-6 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 flex items-center justify-center gap-2 font-semibold text-lg transition-all"
                 >
                   <Upload className="w-5 h-5" />
-                  Process Resume
+                  Process Resume with AI
                 </button>
               </motion.div>
             )}
 
-            {/* Processing Indicator */}
             {isUploading && (
               <motion.div
                 initial={{ opacity: 0 }}
@@ -262,7 +270,7 @@ const UploadResume = () => {
                   </div>
                   <div className="flex-1">
                     <h4 className="font-semibold text-gray-900 mb-1">Processing your resume...</h4>
-                    <p className="text-gray-600 text-sm">Extracting information from your file</p>
+                    <p className="text-gray-600 text-sm">ResumeAI is extracting information from your file</p>
                     <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
                       <div className="bg-gradient-to-r from-blue-500 to-cyan-500 h-2 rounded-full animate-pulse w-3/4"></div>
                     </div>
@@ -272,12 +280,10 @@ const UploadResume = () => {
             )}
           </motion.div>
 
-          {/* Extracted Data Preview */}
           {extractedData && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
               className="mb-8"
             >
               <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
@@ -288,15 +294,11 @@ const UploadResume = () => {
                     </div>
                     <div>
                       <h3 className="text-xl font-bold text-gray-900">Resume Extracted Successfully!</h3>
-                      <p className="text-gray-600">We found {extractedData.extractedSections.length} sections</p>
+                      <p className="text-gray-600">ResumeAI found your information</p>
                     </div>
-                  </div>
-                  <div className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                    {extractedData.confidenceScore}% Confidence
                   </div>
                 </div>
 
-                {/* Preview Toggle */}
                 <button
                   onClick={() => setShowPreview(!showPreview)}
                   className="w-full py-3 px-4 bg-gray-100 hover:bg-gray-200 rounded-xl flex items-center justify-between mb-4 transition-colors"
@@ -307,124 +309,35 @@ const UploadResume = () => {
                   <ChevronRight className={`w-5 h-5 text-gray-600 transition-transform ${showPreview ? 'rotate-90' : ''}`} />
                 </button>
 
-                {/* Preview Content */}
                 {showPreview && (
-                  <div className="space-y-6 animate-slideDown">
-                    {/* Personal Info */}
+                  <div className="space-y-6 max-h-96 overflow-y-auto p-4 bg-gray-50 rounded-xl">
                     <div>
-                      <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                        <FileType className="w-5 h-5 text-blue-600" />
-                        Personal Information
-                      </h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {Object.entries(extractedData.personalInfo).map(([key, value]) => (
-                          <div key={key} className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                            <span className="text-sm font-medium text-gray-700 capitalize">{key}:</span>
-                            <span className="text-sm text-gray-600">{value || 'Not provided'}</span>
-                          </div>
-                        ))}
-                      </div>
+                      <h4 className="font-semibold text-gray-900 mb-2">Personal Information</h4>
+                      <p className="text-sm text-gray-600">Name: {extractedData.personal?.name}</p>
+                      <p className="text-sm text-gray-600">Email: {extractedData.personal?.email}</p>
                     </div>
-
-                    {/* Skills */}
                     <div>
-                      <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                        <Shield className="w-5 h-5 text-purple-600" />
-                        Skills ({extractedData.skills.length})
-                      </h4>
-                      <div className="flex flex-wrap gap-2">
-                        {extractedData.skills.slice(0, 10).map((skill, index) => (
-                          <span
-                            key={index}
-                            className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-sm font-medium"
-                          >
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Experience */}
-                    <div>
-                      <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                        <Clock className="w-5 h-5 text-green-600" />
-                        Experience ({extractedData.experience.length})
-                      </h4>
-                      <div className="space-y-3">
-                        {extractedData.experience.slice(0, 2).map((exp, index) => (
-                          <div key={index} className="p-3 bg-gray-50 rounded-lg">
-                            <div className="font-medium text-gray-900">{exp.jobTitle}</div>
-                            <div className="text-sm text-gray-600">{exp.company} • {exp.location}</div>
-                            <div className="text-sm text-gray-500 mt-1">{exp.startDate} - {exp.endDate}</div>
-                          </div>
-                        ))}
-                      </div>
+                      <h4 className="font-semibold text-gray-900 mb-2">Experience</h4>
+                      {extractedData.experience?.slice(0, 2).map((exp, i) => (
+                        <div key={i} className="mb-2 text-sm text-gray-600">
+                          {exp.title} at {exp.company}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
 
-                {/* Continue Button */}
                 <button
                   onClick={handleContinueToBuilder}
                   disabled={isProcessing}
-                  className="w-full mt-6 py-3 px-6 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-700 hover:to-cyan-700 disabled:opacity-50 flex items-center justify-center gap-2 font-semibold text-lg transition-all"
+                  className="w-full mt-6 py-3 px-6 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-700 hover:to-cyan-700 disabled:opacity-50 flex items-center justify-center gap-2 font-semibold text-lg transition-all shadow-lg"
                 >
-                  {isProcessing ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Creating Resume...
-                    </>
-                  ) : (
-                    <>
-                      Continue to Editor
-                      <ChevronRight className="w-5 h-5" />
-                    </>
-                  )}
+                  {isProcessing ? 'Creating Resume...' : 'Continue to Editor'}
+                  {!isProcessing && <ChevronRight className="w-5 h-5" />}
                 </button>
               </div>
             </motion.div>
           )}
-
-          {/* Supported Formats */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl p-6 text-white"
-          >
-            <h3 className="text-xl font-bold mb-4">Supported Formats</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="flex items-center gap-3 p-3 bg-white/10 rounded-xl">
-                <FileText className="w-6 h-6 text-red-400" />
-                <div>
-                  <div className="font-medium">PDF</div>
-                  <div className="text-sm text-gray-300">Best for text</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-3 bg-white/10 rounded-xl">
-                <FileText className="w-6 h-6 text-blue-400" />
-                <div>
-                  <div className="font-medium">DOC</div>
-                  <div className="text-sm text-gray-300">Microsoft Word</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-3 bg-white/10 rounded-xl">
-                <FileText className="w-6 h-6 text-green-400" />
-                <div>
-                  <div className="font-medium">DOCX</div>
-                  <div className="text-sm text-gray-300">Word Document</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-3 bg-white/10 rounded-xl">
-                <FileText className="w-6 h-6 text-gray-400" />
-                <div>
-                  <div className="font-medium">TXT</div>
-                  <div className="text-sm text-gray-300">Plain Text</div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
         </div>
       </div>
     </div>

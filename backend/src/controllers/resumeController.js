@@ -13,16 +13,11 @@ const ensurePersonalInfo = (personalInfo = {}) => ({
     email: personalInfo.email || '',
     phone: personalInfo.phone || '',
     location: personalInfo.location || '',
-    address: personalInfo.address || '',
-    city: personalInfo.city || '',
-    state: personalInfo.state || '',
-    country: personalInfo.country || '',
-    zipCode: personalInfo.zipCode || '',
+    jobTitle: personalInfo.jobTitle || '',
     linkedin: personalInfo.linkedin || '',
     github: personalInfo.github || '',
-    portfolio: personalInfo.portfolio || '',
     website: personalInfo.website || '',
-    jobTitle: personalInfo.jobTitle || '',
+    portfolio: personalInfo.portfolio || '',
     photoUrl: personalInfo.photoUrl || ''
 });
 
@@ -223,12 +218,19 @@ export const analyzeResume = asyncHandler(async (req, res) => {
         throw new Error(aiResult.error || 'AI analysis failed');
     }
 
+    // Adapt to new JSON structure from ResumeAI prompt
+    const matchReport = aiResult.data.match_report || {};
+    const jdAnalysis = aiResult.data.jd_analysis || {};
+
     const analysis = {
-        atsScore: aiResult.data.atsScore?.score || 0,
-        completeness: aiResult.data.atsScore?.breakdown?.completeness || 0,
-        suggestions: aiResult.data.suggestions?.map(s => s.description || s) || [],
+        atsScore: matchReport.ats_score || 0,
+        completeness: matchReport.ats_score || 0, // Fallback
+        suggestions: matchReport.top_improvements || [],
         lastAnalyzed: new Date(),
-        fullReport: aiResult.data
+        fullReport: aiResult.data,
+        jdKeywords: jdAnalysis.ats_keywords || [],
+        missingKeywords: matchReport.keywords_missing || [],
+        suggestedSummary: matchReport.suggested_summary_rewrite || ''
     };
 
     resume.analysis = analysis;

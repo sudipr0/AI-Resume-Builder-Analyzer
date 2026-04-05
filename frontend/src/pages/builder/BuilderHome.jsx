@@ -68,7 +68,7 @@ const BuilderHome = () => {
 
       switch (optionId) {
         case 'scratch':
-          navigate('/builder/new');
+          navigate('/builder/new', { state: { importedData: {} } });
           break;
         case 'upload':
           navigate('/builder/upload');
@@ -77,7 +77,7 @@ const BuilderHome = () => {
           navigate('/builder/templates');
           break;
         default:
-          navigate('/builder/new');
+          navigate('/builder/new', { state: { importedData: {} } });
       }
     } catch (error) {
       console.error('Navigation error:', error);

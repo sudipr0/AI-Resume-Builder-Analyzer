@@ -3,7 +3,7 @@ import axios from 'axios';
 import { toast } from 'react-hot-toast';
 
 // Get environment variables
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 const APP_ENV = import.meta.env.MODE || 'development';
 
 // Create axios instance
@@ -19,8 +19,8 @@ export const api = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
-    // Add auth token
-    const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token');
+    // Add auth token - Synced with apiService
+    const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -47,12 +47,12 @@ api.interceptors.response.use(
   },
   (error) => {
     const status = error.response?.status;
+    const url = error.config?.url || '';
 
-    if (status === 401) {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
-      sessionStorage.removeItem('auth_token');
-      sessionStorage.removeItem('auth_user');
+    // Don't auto-redirect on login failures
+    if (status === 401 && !url.includes('/auth/login')) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user_data');
 
       toast.error('Session expired. Please login again.');
       setTimeout(() => {
@@ -62,8 +62,6 @@ api.interceptors.response.use(
       toast.error('You do not have permission.');
     } else if (!status && !navigator.onLine) {
       toast.error('You are offline. Check your connection.');
-    } else {
-      toast.error(error.response?.data?.message || 'An error occurred');
     }
 
     return Promise.reject(error);

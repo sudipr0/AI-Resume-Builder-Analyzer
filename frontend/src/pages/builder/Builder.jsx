@@ -33,8 +33,9 @@ import TemplateSelector from '../../components/builder/TemplateSelector';
 import ResumeNameEditor from '../../components/builder/ResumeNameEditor';
 import MobileBottomNav from '../../components/builder/MobileBottomNav';
 
-const Builder = () => {
-    const { id } = useParams();
+const Builder = ({ isNewResume = false, resumeId = null, importedData = null }) => {
+    const { id: urlId } = useParams();
+    const effectiveId = resumeId || urlId;
     const navigate = useNavigate();
     const location = useLocation();
     
@@ -44,6 +45,7 @@ const Builder = () => {
         updateResume, 
         saveResume, 
         loadResume, 
+        createResume,
         loading: resumeLoading 
     } = useResume();
     
@@ -56,7 +58,7 @@ const Builder = () => {
 
     // ============ STATE ============
     const [activeView, setActiveView] = useState('split');
-    const [activeSection, setActiveSection] = useState('personal');
+    const [activeSection, setActiveSection] = useState('personalInfo');
     const [wizardStep, setWizardStep] = useState(0);
     const [previewScale, setPreviewScale] = useState(0.8);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -65,9 +67,10 @@ const Builder = () => {
     const [showTemplateSelector, setShowTemplateSelector] = useState(false);
     const [showNameEditor, setShowNameEditor] = useState(false);
     const [jobDescription, setJobDescription] = useState('');
+    const [isInitializing, setIsInitializing] = useState(true);
 
     const wizardSteps = useMemo(() => [
-        { id: 'personal', label: 'Personal Info', component: PersonalInfoPage },
+        { id: 'personalInfo', label: 'Personal Info', component: PersonalInfoPage },
         { id: 'summary', label: 'Professional Summary', component: SummaryPage },
         { id: 'experience', label: 'Work Experience', component: ExperiencePage },
         { id: 'skills', label: 'Key Skills', component: SkillsPage },
@@ -77,11 +80,50 @@ const Builder = () => {
         { id: 'languages', label: 'Languages', component: LanguagesPage }
     ], []);
 
+    // Initial Load Logic
     useEffect(() => {
-        if (id && (!currentResume || currentResume._id !== id)) {
-            loadResume(id);
-        }
-    }, [id, loadResume, currentResume]);
+        let mounted = true;
+
+        const initializeBuilder = async () => {
+            if (!mounted) return;
+            setIsInitializing(true);
+            
+            try {
+                if (effectiveId && effectiveId !== 'new') {
+                    // Only load if it's not already loaded
+                    if (!currentResume || currentResume._id !== effectiveId) {
+                        console.log('🔍 Loading existing resume:', effectiveId);
+                        await loadResume(effectiveId);
+                    }
+                } else if (isNewResume || effectiveId === 'new') {
+                    // If we already have a currentResume that was just created, don't create another
+                    if (currentResume && (currentResume._id === 'new' || currentResume._id?.startsWith('local_'))) {
+                        setIsInitializing(false);
+                        return;
+                    }
+
+                    console.log('📝 Creating new resume session');
+                    const initialData = importedData || location.state?.importedData || {};
+                    const newResume = await createResume(initialData);
+                    
+                    if (newResume?._id && mounted) {
+                        console.log('✅ New resume created:', newResume._id);
+                        // Redirect to the edit URL so refresh doesn't re-create
+                        navigate(`/builder/edit/${newResume._id}`, { replace: true });
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Builder initialization error:', error);
+                if (mounted) toast.error('Failed to initialize builder');
+            } finally {
+                if (mounted) setIsInitializing(false);
+            }
+        };
+
+        initializeBuilder();
+
+        return () => { mounted = false; };
+    }, [effectiveId, isNewResume]); // Removed importedData and location.state to avoid infinite loops
 
     const handleNextStep = () => {
         if (wizardStep < wizardSteps.length - 1) {
@@ -101,10 +143,18 @@ const Builder = () => {
         updateResume(data);
     };
 
-    if (resumeLoading) {
+    if (resumeLoading || isInitializing) {
         return (
-            <div className="h-screen flex items-center justify-center">
+            <div className="h-screen flex items-center justify-center bg-gray-50 flex-col gap-4">
                 <LoadingSpinner size="lg" />
+                <div className="text-center">
+                    <p className="text-gray-900 font-bold text-xl animate-pulse">
+                        ResumeAI is preparing your workspace
+                    </p>
+                    <p className="text-gray-500 text-sm mt-1">
+                        Organizing your professional story...
+                    </p>
+                </div>
             </div>
         );
     }
@@ -130,12 +180,12 @@ const Builder = () => {
                         className="cursor-pointer group"
                         onClick={() => setShowNameEditor(true)}
                     >
-                        <h1 className="text-lg font-bold flex items-center gap-2 group-hover:text-blue-600 transition-colors">
+                        <h1 className="text-lg font-bold flex items-center gap-2 group-hover:text-blue-600 transition-colors text-gray-900">
                             {currentResume?.title || 'Untitled Resume'}
                             <Edit2 className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </h1>
                         <p className="text-[10px] text-gray-400 font-medium uppercase tracking-widest">
-                            Editing • Auto-saved
+                            {currentResume?._id?.startsWith('local_') ? 'Offline Draft' : 'Cloud Saved'} • {new Date(currentResume?.updatedAt || Date.now()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                         </p>
                     </div>
                 </div>

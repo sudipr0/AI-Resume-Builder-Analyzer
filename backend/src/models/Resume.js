@@ -4,13 +4,17 @@ import { nanoid } from 'nanoid';
 // ==================== SUB-SCHEMAS ====================
 
 const contactSchema = new mongoose.Schema({
-  name: { type: String, default: '' },
+  firstName: { type: String, default: '' },
+  lastName: { type: String, default: '' },
   email: { type: String, default: '' },
   phone: { type: String, default: '' },
   location: { type: String, default: '' },
+  jobTitle: { type: String, default: '' },
   linkedin: { type: String, default: '' },
   github: { type: String, default: '' },
-  website: { type: String, default: '' }
+  website: { type: String, default: '' },
+  portfolio: { type: String, default: '' },
+  photoUrl: { type: String, default: '' }
 }, { _id: false });
 
 const experienceSchema = new mongoose.Schema({

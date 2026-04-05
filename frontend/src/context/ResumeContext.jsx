@@ -389,10 +389,31 @@ export const ResumeProvider = ({ children }) => {
     try {
       let newResume;
       const empty = apiService.resume.getEmptyResume();
+      
+      // Merge initialData with empty template carefully
+      const mergedData = {
+        ...empty,
+        ...initialData,
+        personalInfo: {
+          ...empty.personalInfo,
+          ...(initialData.personalInfo || {})
+        },
+        templateSettings: {
+          ...empty.templateSettings,
+          ...(initialData.templateSettings || {})
+        },
+        experience: initialData.experience || empty.experience,
+        education: initialData.education || empty.education,
+        skills: initialData.skills || empty.skills,
+        projects: initialData.projects || empty.projects,
+        certifications: initialData.certifications || empty.certifications,
+        languages: initialData.languages || empty.languages,
+        awards: initialData.awards || empty.awards
+      };
 
       if (!offlineMode) {
         try {
-          newResume = await apiService.resume.createResume(initialData);
+          newResume = await apiService.resume.createResume(mergedData);
           console.log('✅ Created on server:', newResume._id);
           toast.success('Resume created!');
         } catch (apiError) {
@@ -400,8 +421,7 @@ export const ResumeProvider = ({ children }) => {
 
           const localId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
           newResume = {
-            ...empty,
-            ...initialData,
+            ...mergedData,
             _id: localId,
             id: localId,
             offline: true,
@@ -417,8 +437,7 @@ export const ResumeProvider = ({ children }) => {
       } else {
         const localId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         newResume = {
-          ...empty,
-          ...initialData,
+          ...mergedData,
           _id: localId,
           id: localId,
           offline: true,
@@ -432,7 +451,10 @@ export const ResumeProvider = ({ children }) => {
         toast.success('Resume saved locally');
       }
 
-      setResumes(prev => [newResume, ...prev]);
+      setResumes(prev => {
+        const filtered = prev.filter(r => r._id !== 'new');
+        return [newResume, ...filtered];
+      });
       setCurrentResume(newResume);
 
       return newResume;
@@ -706,6 +728,7 @@ export const ResumeProvider = ({ children }) => {
     loadResumes,
     refreshResumes,
     updateCurrentResumeData,
+    updateResume: updateCurrentResumeData,
     clearCurrentResume,
     getResumeById,
     getEmptyResume: apiService.resume.getEmptyResume,

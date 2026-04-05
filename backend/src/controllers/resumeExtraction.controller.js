@@ -3,8 +3,8 @@ import { v2 as cloudinary } from 'cloudinary';
 import { extractTextFromPDF } from '../utils/pdfParser.js';
 import { extractTextFromDOCX } from '../utils/docxParser.js';
 import { extractTextFromImage } from '../utils/imageOCR.js';
-import { extractResumeData } from '../utils/aiService.js';
-import logger from '../utils/logger.js'; // Assuming logger exists
+import aiService from '../ai/ai.service.js';
+import logger from '../utils/logger.js';
 import SocketService from '../services/socketService.js';
 import FileUpload from '../models/FileUpload.js';
 
@@ -65,7 +65,7 @@ export const extractResumeContent = async (req, res) => {
         }
 
         if (!rawText || rawText.trim().length < 50) {
-            fs.unlinkSync(filePath); // Cleanup
+            if (fs.existsSync(filePath)) fs.unlinkSync(filePath); // Cleanup
             if (userId) {
                 SocketService.notifyUser(userId, 'upload:error', {
                     message: 'Could not extract enough text from document'
@@ -79,14 +79,14 @@ export const extractResumeContent = async (req, res) => {
         try {
             const uploadResult = await cloudinary.uploader.upload(filePath, {
                 folder: 'resumes/raw',
-                resource_type: mimeType === 'application/pdf' ? 'image' : 'auto' // cloudinary handles pdf uploads via image type or raw
+                resource_type: mimeType === 'application/pdf' ? 'image' : 'auto' 
             });
             cloudinaryUrl = uploadResult.secure_url;
         } catch (err) {
             logger.warn('Failed to upload raw resume to Cloudinary (continuing without it):', err);
         }
 
-        fs.unlinkSync(filePath); // Cleanup local temp file
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath); // Cleanup local temp file
 
         // 3. AI Extraction
         logger.info('Calling AI to extract structured data...');
@@ -100,7 +100,16 @@ export const extractResumeContent = async (req, res) => {
 
         let extractedData;
         try {
-            extractedData = await extractResumeData(rawText);
+            // Use the new aiService extract method
+            const aiResponse = await aiService.extract(rawText);
+            
+            // Ensure we have a valid object
+            extractedData = typeof aiResponse === 'string' ? JSON.parse(aiResponse) : aiResponse;
+            
+            // Basic validation of the structure
+            if (!extractedData || (!extractedData.personal && !extractedData.experience)) {
+                throw new Error('AI returned invalid or empty structure');
+            }
         } catch (err) {
             logger.error('AI Extraction failed:', err);
             if (userId) {

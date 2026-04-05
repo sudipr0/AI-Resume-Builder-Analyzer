@@ -1,5 +1,7 @@
 // backend/src/ai/ai.controller.js
 import aiService from './ai.service.js';
+import ResumeAnalysis from '../models/ResumeAnalysis.js';
+import Resume from '../models/Resume.js';
 
 // ==================== HEALTH CHECK ====================
 export const checkHealth = async (req, res) => {
@@ -26,6 +28,13 @@ export const fullResumeAnalysis = async (req, res) => {
         if (!resumeData) return res.status(400).json({ success: false, error: 'Resume data required' });
 
         const result = await aiService.analyzeResume(resumeData, jobDescription, options);
+        
+        // Persist if resumeId is available
+        const resumeId = resumeData._id || resumeData.id;
+        if (resumeId && req.user) {
+            await saveAnalysisToDb(resumeId, req.user._id, jobDescription, result.data);
+        }
+
         res.json(result);
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -39,11 +48,68 @@ export const analyzeResume = async (req, res) => {
         if (!resumeData) return res.status(400).json({ success: false, error: 'Resume data required' });
 
         const result = await aiService.analyzeResume(resumeData, jobDescription, options);
+        
+        // Persist if resumeId is available
+        const resumeId = resumeData._id || resumeData.id;
+        if (resumeId && req.user) {
+            await saveAnalysisToDb(resumeId, req.user._id, jobDescription, result.data);
+        }
+
         res.json(result);
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
 };
+
+// Helper to save analysis to DB
+async function saveAnalysisToDb(resumeId, userId, jobDescription, analysisResult) {
+    try {
+        const updateData = {
+            userId,
+            jobDescription,
+            atsScore: analysisResult.atsScore?.score || 0,
+            matchScore: analysisResult.keywordMatch?.matchPercentage || 0,
+            scores: {
+                formatting: analysisResult.atsScore?.breakdown?.formatting || 0,
+                keywords: analysisResult.atsScore?.breakdown?.keywordMatch || 0,
+                experience: analysisResult.atsScore?.breakdown?.experience || 0,
+                skills: analysisResult.atsScore?.breakdown?.skills || 0,
+                achievements: analysisResult.atsScore?.breakdown?.achievements || 0
+            },
+            keywords: {
+                matched: analysisResult.keywordMatch?.matchedKeywords || [],
+                missing: analysisResult.keywordMatch?.missingKeywords || [],
+                suggested: analysisResult.keywordMatch?.criticalMissing || []
+            },
+            suggestions: (analysisResult.suggestions || []).map(s => ({
+                section: s.section || 'general',
+                type: s.priority === 'high' ? 'critical' : 'tip',
+                message: s.title || s.description || s,
+                improvement: s.description || ''
+            })),
+            strengths: analysisResult.strengths || [],
+            weaknesses: analysisResult.weaknesses || [],
+            aiSummary: analysisResult.aiSummary || 'AI analysis completed.',
+            updatedAt: new Date()
+        };
+
+        await ResumeAnalysis.findOneAndUpdate(
+            { resumeId },
+            { $set: updateData },
+            { upsert: true, new: true }
+        );
+
+        // Also update the resume's own atsScore
+        await Resume.findByIdAndUpdate(resumeId, {
+            $set: { 
+                atsScore: updateData.atsScore,
+                lastAnalyzed: new Date()
+            }
+        });
+    } catch (err) {
+        console.error('Failed to persist AI analysis:', err);
+    }
+}
 
 // ==================== CALCULATE ATS SCORE (Matches Frontend analyze-ats) ====================
 export const calculateATSScore = async (req, res) => {

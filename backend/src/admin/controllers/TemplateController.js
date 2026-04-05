@@ -1,8 +1,8 @@
-const Template = require('../../models/Template'); // Your existing Template model
-const Resume = require('../../models/Resumes');
-const AdminLog = require('../models/AdminLog');
-const fs = require('fs').promises;
-const path = require('path');
+import Template from '../../models/Template.js';
+import AdminResume from '../models/AdminResume.js';
+import AdminLog from '../models/AdminLog.js';
+import { promises as fs } from 'fs';
+import path from 'path';
 
 class TemplateController {
     // Get all templates
@@ -58,7 +58,7 @@ class TemplateController {
 
             // Get usage count for each template
             const templateIds = templates.map(t => t._id);
-            const usageStats = await Resume.aggregate([
+            const usageStats = await AdminResume.aggregate([
                 { $match: { templateId: { $in: templateIds } } },
                 { $group: { _id: '$templateId', count: { $sum: 1 } } }
             ]);
@@ -111,7 +111,7 @@ class TemplateController {
             }
 
             // Get usage stats
-            const usageStats = await Resume.aggregate([
+            const usageStats = await AdminResume.aggregate([
                 { $match: { templateId: id } },
                 {
                     $group: {
@@ -124,7 +124,7 @@ class TemplateController {
             ]);
 
             // Get recent resumes using this template
-            const recentResumes = await Resume.find({ templateId: id })
+            const recentResumes = await AdminResume.find({ templateId: id })
                 .populate('userId', 'name email')
                 .select('title views downloads createdAt')
                 .sort({ createdAt: -1 })
@@ -311,7 +311,7 @@ class TemplateController {
             const { id } = req.params;
 
             // Check if template is being used
-            const usageCount = await Resume.countDocuments({ templateId: id });
+            const usageCount = await AdminResume.countDocuments({ templateId: id });
 
             if (usageCount > 0) {
                 return res.status(400).json({
@@ -496,7 +496,7 @@ class TemplateController {
             ]);
 
             // Get usage per category
-            const usageStats = await Resume.aggregate([
+            const usageStats = await AdminResume.aggregate([
                 {
                     $lookup: {
                         from: 'templates',
@@ -748,4 +748,4 @@ class TemplateController {
     }
 }
 
-module.exports = TemplateController;
+export default TemplateController;

@@ -1,58 +1,59 @@
-const express = require('express');
+import express from 'express';
+import AnalyticsController from '../controllers/AnalyticsController.js';
+import { authenticateAdmin } from '../middlewares/adminAuth.js';
+import { checkPermission, checkAnyPermission } from '../middlewares/permission.js';
+
 const router = express.Router();
-const analyticsController = require('../controllers/analyticsController');
-const { authenticateAdmin } = require('../middlewares/adminAuth');
-const PermissionMiddleware = require('../middlewares/permission');
 
 // All routes require authentication
 router.use(authenticateAdmin);
 
 // Dashboard analytics
 router.get('/dashboard',
-    PermissionMiddleware.checkPermission('dashboard.view'),
-    analyticsController.getDashboardAnalytics
+    checkPermission('dashboard.view'),
+    AnalyticsController.getDashboardAnalytics
 );
 
 // User analytics
 router.get('/users',
-    PermissionMiddleware.checkPermission('users.view'),
-    analyticsController.getUserAnalytics
+    checkPermission('users.view'),
+    AnalyticsController.getUserAnalytics
 );
 
 // Resume analytics
 router.get('/resumes',
-    PermissionMiddleware.checkPermission('resumes.view'),
-    analyticsController.getResumeAnalytics
+    checkPermission('resumes.view'),
+    AnalyticsController.getResumeAnalytics
 );
 
 // System analytics
 router.get('/system',
-    PermissionMiddleware.checkPermission('dashboard.analytics'),
-    analyticsController.getSystemAnalytics
+    checkPermission('dashboard.analytics'),
+    AnalyticsController.getSystemAnalytics
 );
 
 // Real-time analytics
 router.get('/realtime',
-    PermissionMiddleware.checkPermission('dashboard.analytics'),
-    analyticsController.getRealtimeAnalytics
+    checkPermission('dashboard.analytics'),
+    AnalyticsController.getRealtimeAnalytics
 );
 
 // Export analytics data
 router.get('/export',
-    PermissionMiddleware.checkAnyPermission(['export.all', 'resumes.export', 'users.export']),
-    analyticsController.exportAnalyticsData
+    checkAnyPermission(['export.all', 'resumes.export', 'users.export']),
+    AnalyticsController.exportAnalyticsData
 );
 
 // Custom report generation
 router.post('/reports',
-    PermissionMiddleware.checkPermission('dashboard.analytics'),
-    analyticsController.generateCustomReport
+    checkPermission('dashboard.analytics'),
+    AnalyticsController.generateCustomReport
 );
 
 // Get report by ID
 router.get('/reports/:id',
-    PermissionMiddleware.checkPermission('dashboard.analytics'),
-    analyticsController.getReportById
+    checkPermission('dashboard.analytics'),
+    AnalyticsController.getReportById
 );
 
-module.exports = router;
+export default router;

@@ -33,7 +33,7 @@ const Home = () => {
       <nav className="border-b border-slate-700/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
           <div className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-            ✨ AI Resume Builder
+            ✨ Resumecraft
           </div>
           <div className="flex gap-4">
             <button
@@ -176,7 +176,7 @@ const Home = () => {
 
       {/* Footer */}
       <footer className="border-t border-slate-700/50 mt-20 py-12 text-center text-slate-400">
-        <p>© 2026 AI Resume Builder. Built with ❤️ for developers.</p>
+        <p>© 2026 Resumecraft. Built with ❤️ for developers.</p>
       </footer>
     </div>
   );

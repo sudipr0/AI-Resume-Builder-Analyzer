@@ -1,6 +1,6 @@
-const ResumeService = require('../services/ResumeService');
-const ExportService = require('../services/ExportService');
-const LogService = require('../services/LogService');
+import ResumeService from '../services/ResumeService.js';
+import ExportService from '../services/ExportService.js';
+import LogService from '../services/LogService.js';
 
 class ResumeController {
     // Get all resumes with pagination and filters
@@ -250,4 +250,4 @@ class ResumeController {
     }
 }
 
-module.exports = new ResumeController();
+export default new ResumeController();

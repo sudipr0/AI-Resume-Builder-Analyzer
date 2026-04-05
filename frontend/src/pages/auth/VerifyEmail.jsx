@@ -400,7 +400,7 @@ const VerifyEmail = () => {
         {/* Success Toast Placeholder */}
         <div className="mt-6 text-center">
           <p className="text-sm text-gray-500">
-                        © {new Date().getFullYear()} AI Resume Builder. All rights reserved.
+                        © {new Date().getFullYear()} Resumecraft. All rights reserved.
           </p>
         </div>
       </div>

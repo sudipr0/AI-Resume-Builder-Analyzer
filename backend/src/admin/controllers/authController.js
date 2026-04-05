@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import Admin from '../../models/Admin.js';
+import Admin from '../models/Admin.js';
 import { validationResult } from 'express-validator';
 
 const authController = {

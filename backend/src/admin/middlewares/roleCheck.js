@@ -1,4 +1,4 @@
-const Admin = require('../models/Admin');
+import Admin from '../models/Admin.js';
 
 const roleHierarchy = {
     'super_admin': 4,
@@ -7,7 +7,7 @@ const roleHierarchy = {
     'viewer': 1
 };
 
-const canManageRole = (currentAdminRole, targetRole) => {
+export const canManageRole = (currentAdminRole, targetRole) => {
     const currentLevel = roleHierarchy[currentAdminRole] || 0;
     const targetLevel = roleHierarchy[targetRole] || 0;
 
@@ -15,7 +15,7 @@ const canManageRole = (currentAdminRole, targetRole) => {
     return currentLevel > targetLevel;
 };
 
-const checkRoleHierarchy = async (req, res, next) => {
+export const checkRoleHierarchy = async (req, res, next) => {
     try {
         const currentAdmin = req.admin;
         const targetRole = req.body.role || req.params.role;
@@ -46,7 +46,7 @@ const checkRoleHierarchy = async (req, res, next) => {
     }
 };
 
-const checkSelfAction = (req, res, next) => {
+export const checkSelfAction = (req, res, next) => {
     const currentAdminId = req.admin._id.toString();
     const targetAdminId = req.params.id;
 
@@ -60,7 +60,7 @@ const checkSelfAction = (req, res, next) => {
     next();
 };
 
-module.exports = {
+export default {
     checkRoleHierarchy,
     canManageRole,
     checkSelfAction

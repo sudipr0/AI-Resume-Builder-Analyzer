@@ -1,7 +1,7 @@
 {
   "name": "ai-resume-builder-backend",
   "version": "1.0.0",
-  "description": "Backend for AI Resume Builder with Admin System",
+  "description": "Backend for Resumecraft with Admin System",
   "type": "module",
   "main": "server.js",
   "scripts": {
@@ -20,6 +20,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
     "archiver": "^7.0.1",
+    "axios": "^1.14.0",
     "bcryptjs": "^2.4.3",
     "cloudinary": "^2.9.0",
     "compression": "^1.8.1",
@@ -27,7 +28,9 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "crypto": "^1.0.1",
+    "date-fns": "^4.1.0",
     "dotenv": "^16.6.1",
+    "exceljs": "^4.4.0",
     "express": "^4.22.1",
     "express-async-handler": "^1.2.0",
     "express-mongo-sanitize": "^2.2.0",
@@ -40,6 +43,7 @@
     "hpp": "^0.2.3",
     "ioredis": "^5.9.1",
     "jsdom": "^28.1.0",
+    "json2csv": "^6.0.0-alpha.2",
     "jsonwebtoken": "^9.0.3",
     "mammoth": "^1.11.0",
     "mongoose": "^8.21.0",
@@ -53,7 +57,9 @@
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "passport-jwt": "^4.0.1",
+    "passport-local": "^1.0.0",
     "pdf-parse": "^2.4.5",
+    "pdfkit": "^0.18.0",
     "puppeteer": "^24.39.0",
     "rate-limit-redis": "^4.3.1",
     "tesseract.js": "^7.0.0",
@@ -65,7 +71,7 @@
   "devDependencies": {
     "eslint": "^9.11.1",
     "nodemon": "^3.1.11",
-    "socket.io": "^4.7.5",
+    "socket.io": "^4.8.3",
     "socket.io-client": "^4.7.5"
   },
   "engines": {

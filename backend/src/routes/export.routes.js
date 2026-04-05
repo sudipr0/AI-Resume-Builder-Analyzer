@@ -1,9 +1,11 @@
+// src/routes/export.routes.js
 import express from 'express';
 import { exportPdfController } from '../controllers/exportController.js';
-import { authenticateUser } from '../middlewares/authMiddleware.js';
+import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-router.post('/:resumeId/pdf', authenticateUser, exportPdfController);
+// @route   POST /api/export/:resumeId/pdf
+router.post('/:resumeId/pdf', protect, exportPdfController);
 
 export default router;

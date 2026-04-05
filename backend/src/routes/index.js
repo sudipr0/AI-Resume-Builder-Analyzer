@@ -1,124 +1,45 @@
-// src/routes/index.js - ES MODULE VERSION
+// backend/src/routes/index.js
 import express from 'express';
+import authRoutes from './authRoutes.js';
+import resumeRoutes from './resumes.js';
+import aiRoutes from '../ai/ai.routes.js';
+import userRoutes from './userRoutes.js';
+import exportRoutes from './export.routes.js';
+import templateRoutes from './template.routes.js';
+import adminRoutes from '../admin/routes/adminRoutes.js';
+import analyzeRoutes from './analyze.routes.js';
+import resumeExtractionRoutes from './resumeExtraction.routes.js';
+
 const router = express.Router();
 
-// Import existing route modules
-import authRoutes from './authRoutes.js';
-import userRoutes from './userRoutes.js';
-import resumeRoutes from './resumes.js';
-import aiRoutes from '../ai/routes/aiRoutes.js';
-import adminRoutes from './adminRoutes.js';
+// Mount Routes
+router.use('/auth', authRoutes);
+router.use('/resumes', resumeRoutes);
+router.use('/ai', aiRoutes);
+router.use('/users', userRoutes);
+router.use('/export', exportRoutes);
+router.use('/templates', templateRoutes);
+router.use('/extract', resumeExtractionRoutes);
+router.use('/analyze', analyzeRoutes);
+router.use('/admin', adminRoutes);
+
+// Root API route
+router.get('/', (req, res) => {
+    res.json({
+        success: true,
+        message: 'Welcome to AI Resume Builder API',
+        version: '1.0.0'
+    });
+});
 
 // Health check
 router.get('/health', (req, res) => {
-    res.json({
-        status: 'OK',
-        timestamp: new Date().toISOString(),
-        service: 'AI Resume Builder API',
-        version: '2.0.0',
-        environment: process.env.NODE_ENV || 'development',
-        database: 'connected',
-        uptime: process.uptime()
+    res.status(200).json({
+        status: 'success',
+        message: 'Server is healthy',
+        timestamp: new Date().toISOString()
     });
 });
 
-// API documentation endpoint
-router.get('/docs', (req, res) => {
-    res.json({
-        message: 'AI Resume Builder API Documentation',
-        version: '2.0.0',
-        baseURL: process.env.BACKEND_URL || 'http://localhost:5000',
-        endpoints: {
-            auth: {
-                login: 'POST /api/auth/login',
-                register: 'POST /api/auth/register',
-                logout: 'POST /api/auth/logout',
-                google: 'GET /api/auth/google',
-                me: 'GET /api/auth/me',
-                demoLogin: 'POST /api/auth/demo-login'
-            },
-            users: {
-                profile: 'GET /api/users/profile',
-                updateProfile: 'PUT /api/users/profile',
-                changePassword: 'PUT /api/users/change-password',
-                stats: 'GET /api/users/stats'
-            },
-            resumes: {
-                list: 'GET /api/resumes',
-                create: 'POST /api/resumes',
-                get: 'GET /api/resumes/:id',
-                update: 'PUT /api/resumes/:id',
-                delete: 'DELETE /api/resumes/:id',
-                analyze: 'POST /api/resumes/:id/analyze'
-            },
-            ai: {
-                health: 'GET /api/ai/health',
-                status: 'GET /api/ai/status',
-                capabilities: 'GET /api/ai/capabilities',
-                analyze: 'POST /api/ai/analyze',
-                enhance: 'POST /api/ai/enhance',
-                summary: 'POST /api/ai/summary',
-                atsCheck: 'POST /api/ai/ats-check',
-                demoAnalyze: 'POST /api/ai/demo-analyze'
-            },
-            admin: {
-                login: 'POST /api/admin/auth/login',
-                dashboard: 'GET /api/admin/dashboard/stats',
-                users: 'GET /api/admin/users',
-                resumes: 'GET /api/admin/resumes',
-                templates: 'GET /api/admin/templates',
-                analytics: 'GET /api/admin/analytics',
-                settings: 'GET /api/admin/settings',
-                logs: 'GET /api/admin/logs'
-            }
-        }
-    });
-});
-
-// Welcome endpoint
-router.get('/', (req, res) => {
-    res.json({
-        message: '🚀 Welcome to AI Resume Builder API',
-        version: '2.0.0',
-        description: 'AI-powered resume building and analysis platform',
-        environment: process.env.NODE_ENV || 'development',
-        endpoints: {
-            documentation: '/api/docs',
-            health: '/api/health',
-            admin: '/admin',
-            ai: '/api/ai/capabilities'
-        },
-        quickStart: {
-            '1': 'Try demo login: POST /api/auth/demo-login',
-            '2': 'Test AI analysis: POST /api/ai/demo-analyze',
-            '3': 'Check API health: GET /api/health',
-            '4': 'View all endpoints: GET /api/docs'
-        }
-    });
-});
-
-// Mount routes
-router.use('/auth', authRoutes);
-router.use('/users', userRoutes);
-router.use('/resumes', resumeRoutes);
-router.use('/ai', aiRoutes);
-router.use('/admin', adminRoutes); // Mount admin routes
-
-// 404 for undefined API routes
-router.use('*', (req, res) => {
-    res.status(404).json({
-        success: false,
-        message: `API endpoint ${req.originalUrl} not found`,
-        availableEndpoints: {
-            documentation: '/api/docs',
-            health: '/api/health',
-            auth: '/api/auth',
-            users: '/api/users',
-            resumes: '/api/resumes',
-            ai: '/api/ai',
-            admin: '/api/admin'
-        }
-    });
-});
 
 export default router;

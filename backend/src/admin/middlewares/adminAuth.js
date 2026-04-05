@@ -1,8 +1,8 @@
-const jwt = require('jsonwebtoken');
-const Admin = require('../models/Admin');
-const LogService = require('../services/LogService');
+import jwt from 'jsonwebtoken';
+import Admin from '../models/Admin.js';
+import LogService from '../services/LogService.js';
 
-const authenticateAdmin = async (req, res, next) => {
+export const authenticateAdmin = async (req, res, next) => {
     try {
         // Get token from header
         const authHeader = req.headers.authorization;
@@ -16,7 +16,7 @@ const authenticateAdmin = async (req, res, next) => {
         const token = authHeader.split(' ')[1];
 
         // Verify token
-        const decoded = jwt.verify(token, process.env.ADMIN_JWT_SECRET);
+        const decoded = jwt.verify(token, process.env.JWT_ADMIN_SECRET || process.env.ADMIN_JWT_SECRET);
 
         // Find admin
         const admin = await Admin.findById(decoded.id).select('-password -twoFactorSecret');
@@ -78,7 +78,7 @@ const authenticateAdmin = async (req, res, next) => {
     }
 };
 
-const checkRole = (roles = []) => {
+export const checkRole = (roles = []) => {
     return (req, res, next) => {
         if (!req.admin) {
             return res.status(401).json({
@@ -107,7 +107,7 @@ const checkRole = (roles = []) => {
     };
 };
 
-const checkPermission = (requiredPermission) => {
+export const checkPermission = (requiredPermission) => {
     return async (req, res, next) => {
         try {
             if (!req.admin) {
@@ -139,10 +139,4 @@ const checkPermission = (requiredPermission) => {
             });
         }
     };
-};
-
-module.exports = {
-    authenticateAdmin,
-    checkRole,
-    checkPermission
 };

@@ -1,13 +1,69 @@
-// backend/src/admin/controllers/userController.js
-const User = require('../../models/User');
-const Resume = require('../../models/Resumes');
-const AdminLog = require('../models/AdminLog');
+import User from '../../models/User.js';
+import AdminResume from '../models/AdminResume.js';
+import AdminLog from '../models/AdminLog.js';
 
 class UserController {
     // Get all users with pagination and filters
     static async getAllUsers(req, res) {
         try {
-            // ... existing getAllUsers code ...
+            const {
+                page = 1,
+                limit = 20,
+                search = '',
+                status,
+                role,
+                sortBy = 'createdAt',
+                sortOrder = 'desc'
+            } = req.query;
+
+            const query = {};
+
+            if (search) {
+                query.$or = [
+                    { name: { $regex: search, $options: 'i' } },
+                    { email: { $regex: search, $options: 'i' } }
+                ];
+            }
+
+            if (status !== undefined) {
+                query.isActive = status === 'active';
+            }
+
+            if (role) {
+                query.role = role;
+            }
+
+            const skip = (parseInt(page) - 1) * parseInt(limit);
+            const sort = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };
+
+            const [users, total] = await Promise.all([
+                User.find(query)
+                    .select('-password')
+                    .sort(sort)
+                    .skip(skip)
+                    .limit(parseInt(limit))
+                    .lean(),
+                User.countDocuments(query)
+            ]);
+
+            // Add resume count for each user
+            const usersWithStats = await Promise.all(users.map(async (user) => {
+                const resumeCount = await AdminResume.countDocuments({ userId: user._id });
+                return { ...user, resumeCount };
+            }));
+
+            res.json({
+                success: true,
+                data: {
+                    users: usersWithStats,
+                    pagination: {
+                        page: parseInt(page),
+                        limit: parseInt(limit),
+                        total,
+                        pages: Math.ceil(total / parseInt(limit))
+                    }
+                }
+            });
         } catch (error) {
             console.error('Get users error:', error);
             res.status(500).json({
@@ -20,7 +76,33 @@ class UserController {
     // Get user by ID
     static async getUserById(req, res) {
         try {
-            // ... existing getUserById code ...
+            const { id } = req.params;
+
+            const user = await User.findById(id).select('-password').lean();
+
+            if (!user) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'User not found.'
+                });
+            }
+
+            // Get user's resumes
+            const resumes = await AdminResume.find({ userId: id })
+                .sort({ updatedAt: -1 })
+                .lean();
+
+            // Get user's activity logs
+            const activities = []; 
+
+            res.json({
+                success: true,
+                data: {
+                    user,
+                    resumes,
+                    activities
+                }
+            });
         } catch (error) {
             console.error('Get user error:', error);
             res.status(500).json({
@@ -53,15 +135,14 @@ class UserController {
             res.json({
                 success: true,
                 data: {
-                    total: totalUsers,
-                    active: activeUsers,
-                    verified: verifiedUsers,
+                    totalUsers,
+                    activeUsers,
+                    verifiedUsers,
                     newToday,
-                    inactive: inactiveUsers,
-                    weeklyGrowth: Math.round((newToday / lastWeekCount) * 100) || 0
+                    inactiveUsers,
+                    weeklyGrowth: totalUsers - lastWeekCount
                 }
             });
-
         } catch (error) {
             console.error('Get user stats error:', error);
             res.status(500).json({
@@ -74,28 +155,22 @@ class UserController {
     // Create user
     static async createUser(req, res) {
         try {
-            const { name, email, password, role, isActive, isVerified, phone, company, location } = req.body;
+            const { name, email, password, role = 'user' } = req.body;
 
-            // Check if user exists
             const existingUser = await User.findOne({ email });
             if (existingUser) {
                 return res.status(400).json({
                     success: false,
-                    message: 'User already exists.'
+                    message: 'User with this email already exists.'
                 });
             }
 
-            // Create user
             const user = new User({
                 name,
                 email,
                 password,
-                role: role || 'user',
-                isActive: isActive !== undefined ? isActive : true,
-                isVerified: isVerified || false,
-                phone,
-                company,
-                location
+                role,
+                isVerified: true
             });
 
             await user.save();
@@ -107,29 +182,22 @@ class UserController {
                 action: 'CREATE_USER',
                 resource: 'users',
                 resourceId: user._id,
+                details: { name, email, role },
                 ipAddress: req.ip
             });
-
-            const userResponse = user.toObject();
-            delete userResponse.password;
 
             res.status(201).json({
                 success: true,
                 message: 'User created successfully.',
-                data: { user: userResponse }
+                data: {
+                    id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    role: user.role
+                }
             });
-
         } catch (error) {
             console.error('Create user error:', error);
-
-            if (error.name === 'ValidationError') {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Validation error.',
-                    errors: error.errors
-                });
-            }
-
             res.status(500).json({
                 success: false,
                 message: 'Failed to create user.'
@@ -143,16 +211,9 @@ class UserController {
             const { id } = req.params;
             const updates = req.body;
 
-            // Remove sensitive fields
             delete updates.password;
-            delete updates.email;
-            delete updates._id;
 
-            const user = await User.findByIdAndUpdate(
-                id,
-                updates,
-                { new: true, runValidators: true }
-            ).select('-password');
+            const user = await User.findByIdAndUpdate(id, updates, { new: true });
 
             if (!user) {
                 return res.status(404).json({
@@ -177,158 +238,11 @@ class UserController {
                 message: 'User updated successfully.',
                 data: user
             });
-
         } catch (error) {
             console.error('Update user error:', error);
-
-            if (error.name === 'ValidationError') {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Validation error.',
-                    errors: error.errors
-                });
-            }
-
             res.status(500).json({
                 success: false,
                 message: 'Failed to update user.'
-            });
-        }
-    }
-
-    // Update user status
-    static async updateUserStatus(req, res) {
-        try {
-            const { id } = req.params;
-            const { status } = req.body;
-
-            const user = await User.findByIdAndUpdate(
-                id,
-                { isActive: status === 'active' },
-                { new: true }
-            ).select('-password');
-
-            if (!user) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'User not found.'
-                });
-            }
-
-            // Log action
-            await AdminLog.create({
-                adminId: req.admin._id,
-                adminEmail: req.admin.email,
-                action: 'UPDATE_USER_STATUS',
-                resource: 'users',
-                resourceId: id,
-                details: { status },
-                ipAddress: req.ip
-            });
-
-            res.json({
-                success: true,
-                message: `User status updated to ${status}.`,
-                data: user
-            });
-
-        } catch (error) {
-            console.error('Update user status error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Failed to update user status.'
-            });
-        }
-    }
-
-    // Update user role
-    static async updateUserRole(req, res) {
-        try {
-            const { id } = req.params;
-            const { role } = req.body;
-
-            if (!['user', 'admin', 'super_admin', 'moderator'].includes(role)) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Invalid role.'
-                });
-            }
-
-            const user = await User.findByIdAndUpdate(
-                id,
-                { role },
-                { new: true }
-            ).select('-password');
-
-            if (!user) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'User not found.'
-                });
-            }
-
-            // Log action
-            await AdminLog.create({
-                adminId: req.admin._id,
-                adminEmail: req.admin.email,
-                action: 'UPDATE_USER_ROLE',
-                resource: 'users',
-                resourceId: id,
-                details: { role },
-                ipAddress: req.ip
-            });
-
-            res.json({
-                success: true,
-                message: `User role updated to ${role}.`,
-                data: user
-            });
-
-        } catch (error) {
-            console.error('Update user role error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Failed to update user role.'
-            });
-        }
-    }
-
-    // Reset user password
-    static async resetUserPassword(req, res) {
-        try {
-            const { id } = req.params;
-
-            // In a real application, you would generate a reset token and send email
-            // For now, we'll just log the action
-
-            const user = await User.findById(id);
-            if (!user) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'User not found.'
-                });
-            }
-
-            // Log action
-            await AdminLog.create({
-                adminId: req.admin._id,
-                adminEmail: req.admin.email,
-                action: 'RESET_USER_PASSWORD',
-                resource: 'users',
-                resourceId: id,
-                ipAddress: req.ip
-            });
-
-            res.json({
-                success: true,
-                message: 'Password reset email sent.'
-            });
-
-        } catch (error) {
-            console.error('Reset password error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Failed to reset password.'
             });
         }
     }
@@ -338,9 +252,7 @@ class UserController {
         try {
             const { id } = req.params;
 
-            // Check if user exists
             const user = await User.findById(id);
-
             if (!user) {
                 return res.status(404).json({
                     success: false,
@@ -348,8 +260,8 @@ class UserController {
                 });
             }
 
-            // Delete user's resumes
-            await Resume.deleteMany({ userId: id });
+            // Delete user's resumes first
+            await AdminResume.deleteMany({ userId: id });
 
             // Delete user
             await User.findByIdAndDelete(id);
@@ -361,6 +273,7 @@ class UserController {
                 action: 'DELETE_USER',
                 resource: 'users',
                 resourceId: id,
+                details: { name: user.name, email: user.email },
                 ipAddress: req.ip
             });
 
@@ -368,7 +281,6 @@ class UserController {
                 success: true,
                 message: 'User and associated data deleted successfully.'
             });
-
         } catch (error) {
             console.error('Delete user error:', error);
             res.status(500).json({
@@ -378,148 +290,44 @@ class UserController {
         }
     }
 
-    // Bulk actions
-    static async bulkUserAction(req, res) {
+    // Update user status
+    static async updateUserStatus(req, res) {
         try {
-            const { action, userIds } = req.body;
+            const { id } = req.params;
+            const { isActive } = req.body;
 
-            if (!action || !userIds || !Array.isArray(userIds) || userIds.length === 0) {
-                return res.status(400).json({
+            const user = await User.findByIdAndUpdate(id, { isActive }, { new: true });
+
+            if (!user) {
+                return res.status(404).json({
                     success: false,
-                    message: 'Action and userIds array are required.'
+                    message: 'User not found.'
                 });
             }
-
-            let updateQuery = {};
-
-            switch (action) {
-                case 'activate':
-                    updateQuery = { isActive: true };
-                    break;
-                case 'deactivate':
-                    updateQuery = { isActive: false };
-                    break;
-                case 'delete':
-                    // Delete users and their resumes
-                    await Promise.all(userIds.map(async (userId) => {
-                        await Resume.deleteMany({ userId });
-                        await User.findByIdAndDelete(userId);
-                    }));
-
-                    // Log action
-                    await AdminLog.create({
-                        adminId: req.admin._id,
-                        adminEmail: req.admin.email,
-                        action: 'BULK_DELETE_USERS',
-                        resource: 'users',
-                        details: { userIds, action },
-                        ipAddress: req.ip
-                    });
-
-                    return res.json({
-                        success: true,
-                        message: `${userIds.length} users deleted successfully.`
-                    });
-                default:
-                    return res.status(400).json({
-                        success: false,
-                        message: 'Invalid action.'
-                    });
-            }
-
-            // Update users
-            const result = await User.updateMany(
-                { _id: { $in: userIds } },
-                updateQuery
-            );
 
             // Log action
             await AdminLog.create({
                 adminId: req.admin._id,
                 adminEmail: req.admin.email,
-                action: `BULK_${action.toUpperCase()}_USERS`,
+                action: isActive ? 'ACTIVATE_USER' : 'DEACTIVATE_USER',
                 resource: 'users',
-                details: { userIds, action },
+                resourceId: id,
                 ipAddress: req.ip
             });
 
             res.json({
                 success: true,
-                message: `${result.modifiedCount} users ${action}d successfully.`,
-                data: { modifiedCount: result.modifiedCount }
+                message: `User ${isActive ? 'activated' : 'deactivated'} successfully.`,
+                data: user
             });
-
         } catch (error) {
-            console.error('Bulk action error:', error);
+            console.error('Update status error:', error);
             res.status(500).json({
                 success: false,
-                message: 'Failed to perform bulk action.'
-            });
-        }
-    }
-
-    // Get user activity (placeholder)
-    static async getUserActivity(req, res) {
-        try {
-            const { id } = req.params;
-
-            // This would typically fetch from an ActivityLog model
-            // For now, return placeholder data
-
-            res.json({
-                success: true,
-                data: {
-                    activities: [],
-                    total: 0
-                }
-            });
-
-        } catch (error) {
-            console.error('Get user activity error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Failed to fetch user activity.'
-            });
-        }
-    }
-
-    // Get user resumes
-    static async getUserResumes(req, res) {
-        try {
-            const { id } = req.params;
-
-            const resumes = await Resume.find({ userId: id })
-                .select('title template views downloads createdAt updatedAt')
-                .sort({ createdAt: -1 });
-
-            res.json({
-                success: true,
-                data: resumes
-            });
-
-        } catch (error) {
-            console.error('Get user resumes error:', error);
-            res.status(500).json({
-                success: false,
-                message: 'Failed to fetch user resumes.'
+                message: 'Failed to update user status.'
             });
         }
     }
 }
 
-// Export as both class and individual functions for compatibility
-module.exports = UserController;
-
-// Also export individual functions for your existing routes
-module.exports.getAllUsers = UserController.getAllUsers;
-module.exports.getUserById = UserController.getUserById;
-module.exports.getUserStats = UserController.getUserStats;
-module.exports.createUser = UserController.createUser;
-module.exports.updateUser = UserController.updateUser;
-module.exports.updateUserStatus = UserController.updateUserStatus;
-module.exports.updateUserRole = UserController.updateUserRole;
-module.exports.resetUserPassword = UserController.resetUserPassword;
-module.exports.deleteUser = UserController.deleteUser;
-module.exports.bulkUserAction = UserController.bulkUserAction;
-module.exports.getUserActivity = UserController.getUserActivity;
-module.exports.getUserResumes = UserController.getUserResumes;
+export default UserController;

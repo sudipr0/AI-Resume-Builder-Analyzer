@@ -1,5 +1,5 @@
-const Admin = require('../models/Admin');
-const Role = require('../models/Role');
+import Admin from '../models/Admin.js';
+import Role from '../models/Role.js';
 
 class PermissionMiddleware {
     // Check if admin has specific permission
@@ -234,7 +234,7 @@ class PermissionMiddleware {
                 }
 
                 // If not owner, check permission
-                return PermissionMiddleware.checkPermission(requiredPermission)(req, res, next);
+                return this.checkPermission(requiredPermission)(req, res, next);
             } catch (error) {
                 console.error('Ownership check error:', error);
                 return res.status(500).json({
@@ -355,4 +355,11 @@ class PermissionMiddleware {
     }
 }
 
-module.exports = PermissionMiddleware;
+export const checkPermission = PermissionMiddleware.checkPermission;
+export const checkAnyPermission = PermissionMiddleware.checkAnyPermission;
+export const checkAllPermissions = PermissionMiddleware.checkAllPermissions;
+export const checkOwnershipOrPermission = PermissionMiddleware.checkOwnershipOrPermission;
+export const canManageUsers = PermissionMiddleware.canManageUsers;
+export const checkModuleAccess = PermissionMiddleware.checkModuleAccess;
+
+export default PermissionMiddleware;

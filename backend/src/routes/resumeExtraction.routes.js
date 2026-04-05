@@ -1,9 +1,10 @@
 import express from 'express';
 import multer from 'multer';
 import { extractResumeContent } from '../controllers/resumeExtraction.controller.js';
-import { authenticateUser } from '../middlewares/authMiddleware.js';
+import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
+
 
 // Configure multer for temp storage
 const storage = multer.diskStorage({
@@ -37,6 +38,6 @@ const upload = multer({
 
 // Use authentication middleware
 // Assuming it attaches req.user
-router.post('/resume', authenticateUser, upload.single('resumeFile'), extractResumeContent);
+router.post('/resume', protect, upload.single('resumeFile'), extractResumeContent);
 
 export default router;

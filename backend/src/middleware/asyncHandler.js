@@ -1,9 +1,9 @@
-const asyncHandler = (fn) => (req, res, next) => {
+export const asyncHandler = (fn) => (req, res, next) => {
     Promise.resolve(fn(req, res, next)).catch(next);
 };
 
 // Advanced async handler with timeout
-const asyncHandlerWithTimeout = (fn, timeoutMs = 10000) => {
+export const asyncHandlerWithTimeout = (fn, timeoutMs = 10000) => {
     return async (req, res, next) => {
         const timeoutPromise = new Promise((_, reject) => {
             setTimeout(() => {
@@ -23,14 +23,8 @@ const asyncHandlerWithTimeout = (fn, timeoutMs = 10000) => {
 };
 
 // Error wrapper for cleaner controller code
-const catchAsync = (fn) => {
+export const catchAsync = (fn) => {
     return (req, res, next) => {
         fn(req, res, next).catch(next);
     };
-};
-
-module.exports = {
-    asyncHandler,
-    asyncHandlerWithTimeout,
-    catchAsync
 };

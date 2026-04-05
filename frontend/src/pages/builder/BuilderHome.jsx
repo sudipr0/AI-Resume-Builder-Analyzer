@@ -96,11 +96,30 @@ const BuilderHome = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
-      <Navbar />
+    <div className="min-h-screen relative overflow-hidden bg-slate-50 flex flex-col">
+      {/* Animated Background Blobs */}
+      <motion.div 
+          animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
+          transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+          className="absolute -top-40 -left-40 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-50 pointer-events-none z-0"
+      />
+      <motion.div 
+          animate={{ scale: [1, 1.5, 1], rotate: [0, -90, 0] }}
+          transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
+          className="absolute top-40 -right-20 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-50 pointer-events-none z-0"
+      />
+      <motion.div 
+          animate={{ scale: [1, 1.1, 1], x: [0, 100, 0], y: [0, 50, 0] }}
+          transition={{ duration: 15, repeat: Infinity, ease: 'linear' }}
+          className="absolute -bottom-40 left-1/2 w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-50 pointer-events-none z-0"
+      />
+      
+      <div className="relative z-10 w-full">
+        <Navbar />
+      </div>
 
       {/* Main Content */}
-      <div className="pt-24 pb-16 px-4 sm:px-6 lg:px-8">
+      <div className="relative z-10 pt-16 pb-16 px-4 sm:px-6 lg:px-8 flex-1">
         <div className="max-w-7xl mx-auto">
           {/* Welcome Message for Authenticated Users */}
           {isAuthenticated && user && (
@@ -162,9 +181,9 @@ const BuilderHome = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: option.delay }}
                 whileHover={{ y: -8 }}
-                className="relative group"
+                className="relative group h-full"
               >
-                <div className="relative bg-white rounded-3xl border border-gray-200 p-8 shadow-lg hover:shadow-2xl transition-all duration-300">
+                <div className="relative h-full flex flex-col bg-white/60 backdrop-blur-xl rounded-3xl border border-white/50 p-8 shadow-[0_8px_30px_rgb(0,0,0,0.08)] hover:shadow-2xl hover:bg-white/80 transition-all duration-300">
                   {/* Icon */}
                   <div className={`w-20 h-20 rounded-2xl ${option.gradient} flex items-center justify-center mb-6 shadow-lg`}>
                     <div className="text-white">
@@ -201,12 +220,12 @@ const BuilderHome = () => {
 
                   {/* Optional: Add a small feature tag */}
                   {option.id === 'templates' && (
-                    <span className="absolute top-4 right-4 px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full">
-                      New
+                    <span className="absolute top-4 right-4 px-3 py-1 bg-gradient-to-r from-green-400 to-emerald-500 text-white text-xs font-bold rounded-full shadow-md">
+                      NEW
                     </span>
                   )}
                   {option.id === 'upload' && (
-                    <span className="absolute top-4 right-4 px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
+                    <span className="absolute top-4 right-4 px-3 py-1 bg-gradient-to-r from-blue-400 to-indigo-500 text-white text-xs font-bold rounded-full shadow-md">
                       PDF/DOCX
                     </span>
                   )}

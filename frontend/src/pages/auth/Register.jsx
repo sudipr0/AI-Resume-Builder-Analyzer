@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import GoogleOAuthButton from '../../components/auth/GoogleOAuthButton';
-import Navbar from '../../components/Navbar';
+// Navbar imported in layout
 import {
   FaFacebook,
   FaEye,
@@ -332,8 +332,24 @@ const Register = () => {
 
   return (
     <GoogleOAuthProvider clientId={googleClientId}>
-      <Navbar />
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4 md:p-6 lg:p-8">
+
+      <div className="min-h-screen relative overflow-hidden bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-4 md:p-6 lg:p-8">
+        {/* Animated Background Blobs */}
+        <motion.div 
+            animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
+            transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+            className="absolute -top-40 -left-40 w-96 h-96 bg-blue-300 dark:bg-blue-900 rounded-full mix-blend-multiply filter blur-3xl opacity-50 dark:opacity-30 pointer-events-none"
+        />
+        <motion.div 
+            animate={{ scale: [1, 1.5, 1], rotate: [0, -90, 0] }}
+            transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
+            className="absolute top-40 -right-20 w-96 h-96 bg-purple-300 dark:bg-purple-900 rounded-full mix-blend-multiply filter blur-3xl opacity-50 dark:opacity-30 pointer-events-none"
+        />
+        <motion.div 
+            animate={{ scale: [1, 1.1, 1], x: [0, 100, 0], y: [0, 50, 0] }}
+            transition={{ duration: 15, repeat: Infinity, ease: 'linear' }}
+            className="absolute -bottom-40 left-1/2 w-96 h-96 bg-indigo-300 dark:bg-indigo-900 rounded-full mix-blend-multiply filter blur-3xl opacity-50 dark:opacity-30 pointer-events-none"
+        />
         <motion.div
           className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center"
           variants={containerVariants}
@@ -434,7 +450,7 @@ const Register = () => {
             {/* Registration Form */}
             <motion.div
               variants={itemVariants}
-              className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 lg:p-8 xl:p-10 border border-gray-100 dark:border-gray-700 w-full max-w-md mx-auto lg:mx-0 lg:max-w-lg"
+              className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] p-6 lg:p-8 xl:p-10 border border-white/50 dark:border-gray-600/50 w-full max-w-md mx-auto lg:mx-0 lg:max-w-lg relative z-10"
             >
               <div className="text-center mb-6 lg:mb-8">
                 <h2 className="text-2xl lg:text-3xl xl:text-4xl font-bold text-gray-900 dark:text-white mb-2 lg:mb-3">

@@ -1,6 +1,6 @@
-const Resume = require('../models/Resume');
-const User = require('../../api/models/User');
-const mongoose = require('mongoose');
+import AdminResume from '../models/AdminResume.js';
+import User from '../../models/User.js';
+import mongoose from 'mongoose';
 
 class ResumeService {
     // Get all resumes with pagination and filters
@@ -66,13 +66,13 @@ class ResumeService {
 
             // Execute query with pagination
             const [resumes, total] = await Promise.all([
-                Resume.find(query)
+                AdminResume.find(query)
                     .populate('user', 'name email')
                     .sort(sortOptions)
                     .skip(skip)
                     .limit(limit)
                     .lean(),
-                Resume.countDocuments(query)
+                AdminResume.countDocuments(query)
             ]);
 
             // Format resumes for response
@@ -128,7 +128,7 @@ class ResumeService {
     // Get resume by ID
     static async getResumeById(id) {
         try {
-            const resume = await Resume.findById(id)
+            const resume = await AdminResume.findById(id)
                 .populate('user', 'name email phone')
                 .populate('adminNotes.admin', 'name email')
                 .lean();
@@ -202,7 +202,7 @@ class ResumeService {
     // Update resume
     static async updateResume(id, updateData, adminId) {
         try {
-            const resume = await Resume.findById(id);
+            const resume = await AdminResume.findById(id);
 
             if (!resume) {
                 throw new Error('Resume not found');
@@ -256,7 +256,7 @@ class ResumeService {
     // Delete resume (soft delete)
     static async deleteResume(id, adminId) {
         try {
-            const resume = await Resume.findById(id);
+            const resume = await AdminResume.findById(id);
 
             if (!resume) {
                 throw new Error('Resume not found');
@@ -283,7 +283,7 @@ class ResumeService {
     // Permanent delete
     static async permanentDelete(id, adminId) {
         try {
-            const resume = await Resume.findById(id);
+            const resume = await AdminResume.findById(id);
 
             if (!resume) {
                 throw new Error('Resume not found');
@@ -302,7 +302,7 @@ class ResumeService {
             };
 
             // Permanent delete
-            await Resume.findByIdAndDelete(id);
+            await AdminResume.findByIdAndDelete(id);
 
             return {
                 success: true,
@@ -318,7 +318,7 @@ class ResumeService {
     // Restore deleted resume
     static async restoreResume(id, adminId) {
         try {
-            const resume = await Resume.findById(id);
+            const resume = await AdminResume.findById(id);
 
             if (!resume) {
                 throw new Error('Resume not found');
@@ -367,7 +367,7 @@ class ResumeService {
                 }
             }
 
-            const resumes = await Resume.find(query)
+            const resumes = await AdminResume.find(query)
                 .populate('user', 'name email')
                 .lean();
 
@@ -455,7 +455,7 @@ class ResumeService {
     // Get statistics for a query
     static async getResumeStatisticsForQuery(query) {
         try {
-            const stats = await Resume.aggregate([
+            const stats = await AdminResume.aggregate([
                 { $match: query },
                 {
                     $facet: {
@@ -503,7 +503,7 @@ class ResumeService {
 
     // Get total resume statistics
     static async getTotalResumeStats(startDate, endDate) {
-        const stats = await Resume.aggregate([
+        const stats = await AdminResume.aggregate([
             {
                 $match: {
                     createdAt: { $gte: startDate, $lte: endDate },
@@ -541,7 +541,7 @@ class ResumeService {
 
     // Get daily resume statistics
     static async getDailyResumeStats(startDate, endDate) {
-        const stats = await Resume.aggregate([
+        const stats = await AdminResume.aggregate([
             {
                 $match: {
                     createdAt: { $gte: startDate, $lte: endDate },
@@ -566,7 +566,7 @@ class ResumeService {
 
     // Get template statistics
     static async getTemplateStats(startDate, endDate) {
-        const stats = await Resume.aggregate([
+        const stats = await AdminResume.aggregate([
             {
                 $match: {
                     createdAt: { $gte: startDate, $lte: endDate },
@@ -589,7 +589,7 @@ class ResumeService {
 
     // Get status statistics
     static async getStatusStats(startDate, endDate) {
-        const stats = await Resume.aggregate([
+        const stats = await AdminResume.aggregate([
             {
                 $match: {
                     createdAt: { $gte: startDate, $lte: endDate }
@@ -615,7 +615,7 @@ class ResumeService {
 
     // Get completion statistics
     static async getCompletionStats(startDate, endDate) {
-        const stats = await Resume.aggregate([
+        const stats = await AdminResume.aggregate([
             {
                 $match: {
                     createdAt: { $gte: startDate, $lte: endDate },
@@ -700,7 +700,7 @@ class ResumeService {
 
     // Bulk delete
     static async bulkDelete(ids, adminId) {
-        const result = await Resume.updateMany(
+        const result = await AdminResume.updateMany(
             { _id: { $in: ids } },
             {
                 $set: {
@@ -721,7 +721,7 @@ class ResumeService {
 
     // Bulk update status
     static async bulkUpdateStatus(ids, status, adminId) {
-        const result = await Resume.updateMany(
+        const result = await AdminResume.updateMany(
             { _id: { $in: ids } },
             {
                 $set: {
@@ -738,7 +738,7 @@ class ResumeService {
 
         // Set publishedAt if status is published
         if (status === 'published') {
-            await Resume.updateMany(
+            await AdminResume.updateMany(
                 { _id: { $in: ids }, publishedAt: { $exists: false } },
                 { $set: { publishedAt: new Date() } }
             );
@@ -755,7 +755,7 @@ class ResumeService {
 
     // Bulk update featured
     static async bulkUpdateFeatured(ids, isFeatured, adminId) {
-        const result = await Resume.updateMany(
+        const result = await AdminResume.updateMany(
             { _id: { $in: ids } },
             {
                 $set: {
@@ -776,7 +776,7 @@ class ResumeService {
 
     // Bulk update public
     static async bulkUpdatePublic(ids, isPublic, adminId) {
-        const result = await Resume.updateMany(
+        const result = await AdminResume.updateMany(
             { _id: { $in: ids } },
             {
                 $set: {
@@ -797,7 +797,7 @@ class ResumeService {
 
     // Bulk add flag
     static async bulkAddFlag(ids, flag, adminId) {
-        const result = await Resume.updateMany(
+        const result = await AdminResume.updateMany(
             { _id: { $in: ids } },
             {
                 $addToSet: { flags: flag },
@@ -816,7 +816,7 @@ class ResumeService {
 
     // Bulk remove flag
     static async bulkRemoveFlag(ids, flag, adminId) {
-        const result = await Resume.updateMany(
+        const result = await AdminResume.updateMany(
             { _id: { $in: ids } },
             {
                 $pull: { flags: flag },
@@ -885,7 +885,7 @@ class ResumeService {
             // Exclude deleted resumes
             searchConditions.status = { $ne: 'deleted' };
 
-            const resumes = await Resume.find(searchConditions)
+            const resumes = await AdminResume.find(searchConditions)
                 .populate('user', 'name email')
                 .limit(limit)
                 .lean();
@@ -915,7 +915,7 @@ class ResumeService {
     // Add admin note to resume
     static async addAdminNote(resumeId, adminId, note) {
         try {
-            const resume = await Resume.findById(resumeId);
+            const resume = await AdminResume.findById(resumeId);
 
             if (!resume) {
                 throw new Error('Resume not found');
@@ -941,7 +941,7 @@ class ResumeService {
     // Add flag to resume
     static async addFlag(resumeId, flag) {
         try {
-            const resume = await Resume.findById(resumeId);
+            const resume = await AdminResume.findById(resumeId);
 
             if (!resume) {
                 throw new Error('Resume not found');
@@ -963,7 +963,7 @@ class ResumeService {
     // Remove flag from resume
     static async removeFlag(resumeId, flag) {
         try {
-            const resume = await Resume.findById(resumeId);
+            const resume = await AdminResume.findById(resumeId);
 
             if (!resume) {
                 throw new Error('Resume not found');
@@ -985,7 +985,7 @@ class ResumeService {
     // Update resume status
     static async updateStatus(resumeId, status, adminId) {
         try {
-            const resume = await Resume.findById(resumeId);
+            const resume = await AdminResume.findById(resumeId);
 
             if (!resume) {
                 throw new Error('Resume not found');
@@ -1022,7 +1022,7 @@ class ResumeService {
     // Toggle featured status
     static async toggleFeatured(resumeId, adminId) {
         try {
-            const resume = await Resume.findById(resumeId);
+            const resume = await AdminResume.findById(resumeId);
 
             if (!resume) {
                 throw new Error('Resume not found');
@@ -1048,7 +1048,7 @@ class ResumeService {
     // Preview resume (get HTML/PDF content)
     static async previewResume(resumeId, format = 'html') {
         try {
-            const resume = await Resume.findById(resumeId)
+            const resume = await AdminResume.findById(resumeId)
                 .populate('user', 'name email')
                 .lean();
 
@@ -1073,7 +1073,7 @@ class ResumeService {
     // Get resume analytics
     static async getResumeAnalytics(resumeId) {
         try {
-            const resume = await Resume.findById(resumeId)
+            const resume = await AdminResume.findById(resumeId)
                 .select('views downloads lastViewed lastDownloaded createdAt')
                 .lean();
 
@@ -1113,7 +1113,7 @@ class ResumeService {
     // Duplicate resume
     static async duplicateResume(resumeId, adminId) {
         try {
-            const resume = await Resume.findById(resumeId).lean();
+            const resume = await AdminResume.findById(resumeId).lean();
 
             if (!resume) {
                 throw new Error('Resume not found');
@@ -1130,7 +1130,7 @@ class ResumeService {
             const newSlug = `${resume.slug}-copy-${Date.now()}`;
 
             // Create new resume
-            const newResume = new Resume({
+            const newResume = new AdminResume({
                 ...resume,
                 title: newTitle,
                 slug: newSlug,
@@ -1157,4 +1157,4 @@ class ResumeService {
     }
 }
 
-module.exports = ResumeService;
+export default ResumeService;

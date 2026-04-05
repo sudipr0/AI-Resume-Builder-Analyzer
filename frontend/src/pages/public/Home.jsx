@@ -3,9 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, useAnimation } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 
-// Components
-import Navbar from '../../components/Navbar';
-import Footer from '../../components/Footer';
+// Components replaced by layout
 
 // Icons
 import {
@@ -293,9 +291,6 @@ const Home = () => {
         <div className="absolute top-1/3 left-1/4 w-60 h-60 bg-cyan-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse delay-500"></div>
         <div className="absolute bottom-1/4 right-1/4 w-60 h-60 bg-pink-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse delay-1500"></div>
       </motion.div>
-
-      {/* Navigation */}
-      <Navbar />
 
       {/* Hero Section */}
       <section className="relative pt-24 md:pt-32 pb-16 md:pb-24 px-4 sm:px-6 lg:px-8 overflow-hidden">
@@ -672,9 +667,6 @@ const Home = () => {
           </motion.div>
         </div>
       </section>
-
-      {/* Footer */}
-      <Footer />
     </div>
   );
 };

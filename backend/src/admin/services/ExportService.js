@@ -1,20 +1,21 @@
-const { Parser } = require('json2csv');
-const ExcelJS = require('exceljs');
-const PDFDocument = require('pdfkit');
-const fs = require('fs');
-const path = require('path');
-const archiver = require('archiver');
-const Resume = require('../models/Resume');
-const User = require('../../api/models/User');
-const AdminLog = require('../models/AdminLog');
-const LogService = require('./LogService');
+import { Parser } from 'json2csv';
+import ExcelJS from 'exceljs';
+import PDFDocument from 'pdfkit';
+import fs from 'fs';
+import path from 'path';
+import archiver from 'archiver';
+import AdminResume from '../models/AdminResume.js';
+import User from '../../models/User.js';
+import AdminLog from '../models/AdminLog.js';
+import LogService from './LogService.js';
+import mongoose from 'mongoose';
 
 class ExportService {
     // Export resumes to various formats
     static async exportResumes(filters = {}, format = 'csv') {
         try {
             // Fetch resumes based on filters
-            const resumes = await Resume.find(filters)
+            const resumes = await AdminResume.find(filters)
                 .populate('user', 'name email')
                 .lean();
 
@@ -463,7 +464,7 @@ class ExportService {
 
     // Get resume statistics
     static async getResumeStatistics(startDate, endDate) {
-        const resumeStats = await Resume.aggregate([
+        const resumeStats = await AdminResume.aggregate([
             {
                 $match: {
                     createdAt: { $gte: startDate, $lte: endDate }
@@ -813,14 +814,14 @@ class ExportService {
             }
 
             return {
-                deleted: deletedCount,
+                deletedCount,
                 message: `Cleaned up ${deletedCount} old export files`
             };
         } catch (error) {
-            console.error('Cleanup exports error:', error);
+            console.error('Cleanup old exports error:', error);
             throw error;
         }
     }
 }
 
-module.exports = ExportService;
+export default ExportService;

@@ -1,12 +1,12 @@
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
-const speakeasy = require('speakeasy');
-const QRCode = require('qrcode');
-const Admin = require('../models/Admin');
-const AdminService = require('./AdminService');
-const LogService = require('./LogService');
-const EmailService = require('../../api/services/EmailService');
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+import speakeasy from 'speakeasy';
+import QRCode from 'qrcode';
+import Admin from '../models/Admin.js';
+import AdminService from './AdminService.js';
+import LogService from './LogService.js';
+import EmailService from '../../services/EmailService.js';
 
 class AuthService {
     // Admin login
@@ -374,4 +374,4 @@ class AuthService {
     }
 }
 
-module.exports = AuthService;
+export default AuthService;

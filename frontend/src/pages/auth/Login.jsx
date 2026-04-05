@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import GoogleOAuthButton from '../../components/auth/GoogleOAuthButton';
-import Navbar from '../../components/Navbar';
+// Navbar imported in layout
 import {
   FaEye,
   FaEyeSlash,
@@ -187,21 +187,7 @@ const Login = () => {
     }
   };
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.3 }}
-          className="text-center"
-        >
-          <div className="h-16 w-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600 text-lg font-medium">Loading...</p>
-        </motion.div>
-      </div>
-    );
-  }
+
 
   const getFeatures = () => {
     return serverStatus === 'online'
@@ -221,8 +207,24 @@ const Login = () => {
 
   return (
     <GoogleOAuthProvider clientId={googleClientId}>
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-        <Navbar />
+      <div className="min-h-screen relative overflow-hidden bg-slate-50 flex flex-col">
+        {/* Animated Background Blobs */}
+        <motion.div 
+            animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
+            transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+            className="absolute -top-40 -left-40 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-50 pointer-events-none"
+        />
+        <motion.div 
+            animate={{ scale: [1, 1.5, 1], rotate: [0, -90, 0] }}
+            transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
+            className="absolute top-40 -right-20 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-50 pointer-events-none"
+        />
+        <motion.div 
+            animate={{ scale: [1, 1.1, 1], x: [0, 100, 0], y: [0, 50, 0] }}
+            transition={{ duration: 15, repeat: Infinity, ease: 'linear' }}
+            className="absolute -bottom-40 left-1/2 w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-50 pointer-events-none"
+        />
+
 
         {/* Server Status Banner */}
         {serverStatus !== 'checking' && (
@@ -341,7 +343,7 @@ const Login = () => {
                     initial="hidden"
                     animate="visible"
                     exit="exit"
-                    className="bg-white rounded-2xl shadow-2xl p-6 lg:p-8 xl:p-10 border border-gray-100 w-full max-w-md mx-auto lg:mx-0 lg:max-w-lg"
+                    className="bg-white/60 backdrop-blur-xl rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] p-6 lg:p-8 xl:p-10 border border-white/50 w-full max-w-md mx-auto lg:mx-0 lg:max-w-lg relative z-10"
                   >
                     <div className="text-center mb-6 lg:mb-8">
                       <h2 className="text-2xl lg:text-3xl xl:text-4xl font-bold text-gray-900 mb-2 lg:mb-3">
@@ -519,7 +521,7 @@ const Login = () => {
                     initial="hidden"
                     animate="visible"
                     exit="exit"
-                    className="bg-white rounded-2xl shadow-2xl p-6 lg:p-8 xl:p-10 border border-gray-100 w-full max-w-md mx-auto lg:mx-0 lg:max-w-lg"
+                    className="bg-white/60 backdrop-blur-xl rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] p-6 lg:p-8 xl:p-10 border border-white/50 w-full max-w-md mx-auto lg:mx-0 lg:max-w-lg relative z-10"
                   >
                     <div className="text-center mb-6 lg:mb-8">
                       <div className="text-4xl lg:text-5xl mb-4">🚀</div>

@@ -1,4 +1,4 @@
-# 🚀 AI Resume Builder & Analyzer
+# 🚀 Resumecraft - AI Resume Builder & Analyzer
 
 A modern, AI-powered resume building and analysis platform built with **React**, **Node.js**, **Express**, and **MongoDB**. Create, optimize, and analyze resumes with intelligent AI suggestions to maximize ATS compatibility.
 

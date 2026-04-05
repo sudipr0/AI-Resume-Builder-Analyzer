@@ -1,10 +1,17 @@
-const Setting = require('../models/Setting');
-const Backup = require('../models/Backup');
-const mongoose = require('mongoose');
-const fs = require('fs');
-const path = require('path');
-const { exec } = require('child_process');
-const util = require('util');
+import Setting from '../models/Setting.js';
+import Backup from '../models/Backup.js';
+import mongoose from 'mongoose';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { exec } from 'child_process';
+import util from 'util';
+import os from 'os';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const execPromise = util.promisify(exec);
 
 class SettingService {
@@ -392,15 +399,15 @@ class SettingService {
     // Get OS information
     static getOSInfo() {
         return {
-            type: require('os').type(),
-            platform: require('os').platform(),
-            arch: require('os').arch(),
-            release: require('os').release(),
-            uptime: Math.floor(require('os').uptime() / 60), // in minutes
-            totalMem: `${Math.round(require('os').totalmem() / 1024 / 1024 / 1024)} GB`,
-            freeMem: `${Math.round(require('os').freemem() / 1024 / 1024 / 1024)} GB`,
-            cpus: require('os').cpus().length,
-            loadavg: require('os').loadavg()
+            type: os.type(),
+            platform: os.platform(),
+            arch: os.arch(),
+            release: os.release(),
+            uptime: Math.floor(os.uptime() / 60), // in minutes
+            totalMem: `${Math.round(os.totalmem() / 1024 / 1024 / 1024)} GB`,
+            freeMem: `${Math.round(os.freemem() / 1024 / 1024 / 1024)} GB`,
+            cpus: os.cpus().length,
+            loadavg: os.loadavg()
         };
     }
 
@@ -1164,4 +1171,4 @@ class SettingService {
     }
 }
 
-module.exports = SettingService;
+export default SettingService;

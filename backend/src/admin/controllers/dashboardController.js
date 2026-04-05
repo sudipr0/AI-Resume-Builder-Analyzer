@@ -1,13 +1,13 @@
 // backend/src/admin/controllers/dashboardController.js
-const User = require('../../models/User');
-const Resume = require('../../models/Resumes');
-const Template = require('../../models/Template');
-const ActivityLog = require('../../models/ActivityLog');
-const { formatBytes } = require('../../utils/helpers');
+import User from '../../models/User.js';
+import AdminResume from '../models/AdminResume.js';
+import Template from '../../models/Template.js';
+import Activity from '../../models/Activity.js';
+import { formatBytes } from '../../utils/helpers.js';
 
 const dashboardController = {
-    // Main dashboard statistics - THIS IS WHAT FRONTEND CALLS
-    getDashboardStats: async (req, res) => {
+    // Main dashboard statistics
+    getStats: async (req, res) => {
         try {
             const { range = '7d' } = req.query;
 
@@ -42,13 +42,13 @@ const dashboardController = {
                 inactiveUsers
             ] = await Promise.all([
                 User.countDocuments(),
-                Resume.countDocuments(),
+                AdminResume.countDocuments(),
                 Template.countDocuments(),
                 User.countDocuments({ isActive: true }),
                 User.countDocuments({
                     createdAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) }
                 }),
-                Resume.countDocuments({
+                AdminResume.countDocuments({
                     createdAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) }
                 }),
                 User.countDocuments({ isVerified: true }),
@@ -56,13 +56,13 @@ const dashboardController = {
             ]);
 
             // Calculate storage used (simplified)
-            const storageResult = await Resume.aggregate([
+            const storageResult = await AdminResume.aggregate([
                 { $group: { _id: null, totalSize: { $sum: { $ifNull: ['$size', 0] } } } }
             ]);
             const storageUsed = storageResult[0]?.totalSize || 0;
 
             // Get timeline data
-            const timeline = await getTimelineData(range);
+            const timeline = await getTimelineDataInternal(range);
 
             // Get performance metrics
             const performance = {
@@ -96,10 +96,10 @@ const dashboardController = {
             ]);
 
             const [previousResumes, currentResumes] = await Promise.all([
-                Resume.countDocuments({
+                AdminResume.countDocuments({
                     createdAt: { $gte: previousStartDate, $lt: startDate }
                 }),
-                Resume.countDocuments({ createdAt: { $gte: startDate } })
+                AdminResume.countDocuments({ createdAt: { $gte: startDate } })
             ]);
 
             const userGrowth = previousUsers > 0 ?
@@ -114,7 +114,7 @@ const dashboardController = {
                         totalUsers,
                         totalResumes,
                         totalTemplates,
-                        totalAnalyses: Resume.countDocuments({ analysisCompleted: true }),
+                        totalAnalyses: await AdminResume.countDocuments({ analysisCompleted: true }),
                         activeUsers,
                         newToday: newUsersToday,
                         storageUsed: formatBytes(storageUsed),
@@ -148,26 +148,26 @@ const dashboardController = {
     },
 
     // Get recent activities - WHAT FRONTEND CALLS
-    getRecentActivity: async (req, res) => {
+    getRecentActivities: async (req, res) => {
         try {
             const { limit = 5 } = req.query;
 
-            const activities = await ActivityLog.find()
+            const activities = await Activity.find()
                 .sort({ createdAt: -1 })
                 .limit(parseInt(limit))
-                .populate('user', 'name email')
+                .populate('userId', 'name email')
                 .lean();
 
             const formattedActivities = activities.map(activity => ({
                 id: activity._id,
-                user: activity.user ? {
-                    name: activity.user.name,
-                    email: activity.user.email
+                user: activity.userId ? {
+                    name: activity.userId.name,
+                    email: activity.userId.email
                 } : { name: 'System', email: '' },
-                action: activity.action || 'Performed action',
-                resource: activity.resourceType || 'system',
+                action: activity.type || 'Performed action',
+                resource: 'system',
                 timestamp: activity.createdAt,
-                details: activity.details
+                details: activity.description
             }));
 
             res.json({
@@ -232,7 +232,7 @@ const dashboardController = {
         try {
             const { limit = 5 } = req.query;
 
-            const recentResumes = await Resume.find()
+            const recentResumes = await AdminResume.find()
                 .sort({ createdAt: -1 })
                 .limit(parseInt(limit))
                 .populate('user', 'name email')
@@ -262,56 +262,11 @@ const dashboardController = {
                 message: 'Failed to fetch recent resumes'
             });
         }
-    },
-
-    // Other methods you already have...
-    getQuickStats: async (req, res) => {
-        // Implementation...
-    },
-
-    getSystemMetrics: async (req, res) => {
-        // Implementation...
-    },
-
-    getDashboardCharts: async (req, res) => {
-        // Implementation...
-    },
-
-    getTimelineData: async (req, res) => {
-        // Implementation...
-    },
-
-    getTemplateStats: async (req, res) => {
-        // Implementation...
-    },
-
-    getUserGrowthAnalytics: async (req, res) => {
-        // Implementation...
-    },
-
-    getResumeGrowthAnalytics: async (req, res) => {
-        // Implementation...
-    },
-
-    getAIStats: async (req, res) => {
-        // Implementation...
-    },
-
-    checkSystemHealth: async (req, res) => {
-        // Implementation...
-    },
-
-    refreshCache: async (req, res) => {
-        // Implementation...
-    },
-
-    exportDashboardData: async (req, res) => {
-        // Implementation...
     }
 };
 
 // Helper functions
-async function getTimelineData(range) {
+async function getTimelineDataInternal(range) {
     try {
         const now = new Date();
         let days = 7;
@@ -351,7 +306,7 @@ async function getTimelineData(range) {
                     User.countDocuments({
                         createdAt: { $gte: date, $lt: nextDate }
                     }),
-                    Resume.countDocuments({
+                    AdminResume.countDocuments({
                         createdAt: { $gte: date, $lt: nextDate }
                     })
                 ]);
@@ -374,7 +329,7 @@ async function getTimelineData(range) {
                     User.countDocuments({
                         createdAt: { $gte: date, $lt: nextDate }
                     }),
-                    Resume.countDocuments({
+                    AdminResume.countDocuments({
                         createdAt: { $gte: date, $lt: nextDate }
                     })
                 ]);
@@ -390,7 +345,6 @@ async function getTimelineData(range) {
         return timeline;
     } catch (error) {
         console.error('Timeline data error:', error);
-        // Return mock data
         return getMockTimelineData(range);
     }
 }
@@ -445,4 +399,4 @@ function getMockTimelineData(range) {
     return timeline;
 }
 
-module.exports = dashboardController;
+export default dashboardController;

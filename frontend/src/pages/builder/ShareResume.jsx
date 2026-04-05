@@ -8,7 +8,7 @@ import Navbar from '../../components/Navbar';
 import { useResume } from '../../context/ResumeContext';
 import { useAuth } from '../../context/AuthContext';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import ErrorDisplay from '../../components/ui/ErrorDisplay';
+import ErrorDisplay from '../../components/error/ErrorDisplay';
 
 const ShareResume = () => {
     const { id } = useParams();

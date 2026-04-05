@@ -1,6 +1,6 @@
-const User = require('../../models/User');
-const Resume = require('../../models/Resumes');
-const AdminLog = require('../models/AdminLog');
+import User from '../../models/User.js';
+import AdminResume from '../models/AdminResume.js';
+import AdminLog from '../models/AdminLog.js';
 
 class AnalyticsController {
     // Get dashboard overview statistics
@@ -19,7 +19,7 @@ class AnalyticsController {
                 User.countDocuments(),
 
                 // Total resumes
-                Resume.countDocuments(),
+                AdminResume.countDocuments(),
 
                 // Active users (logged in last 30 days)
                 User.countDocuments({
@@ -27,7 +27,7 @@ class AnalyticsController {
                 }),
 
                 // Resumes created today
-                Resume.countDocuments({
+                AdminResume.countDocuments({
                     createdAt: { $gte: new Date().setHours(0, 0, 0, 0) }
                 }),
 
@@ -50,7 +50,7 @@ class AnalyticsController {
                 ]),
 
                 // Resume trends (last 30 days)
-                Resume.aggregate([
+                AdminResume.aggregate([
                     {
                         $match: {
                             createdAt: {
@@ -158,12 +158,12 @@ class AnalyticsController {
         ] = await Promise.all([
             User.countDocuments(),
             User.countDocuments(dateFilter),
-            Resume.countDocuments(),
-            Resume.countDocuments(dateFilter),
+            AdminResume.countDocuments(),
+            AdminResume.countDocuments(dateFilter),
             User.countDocuments({
                 lastLogin: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
             }),
-            Resume.aggregate([
+            AdminResume.aggregate([
                 { $group: { _id: '$template', count: { $sum: 1 } } },
                 { $sort: { count: -1 } },
                 { $limit: 5 }
@@ -266,7 +266,7 @@ class AnalyticsController {
             avgResumeStats
         ] = await Promise.all([
             // Resumes by date
-            Resume.aggregate([
+            AdminResume.aggregate([
                 { $match: dateFilter },
                 {
                     $group: {
@@ -278,7 +278,7 @@ class AnalyticsController {
             ]),
 
             // Top resumes by views
-            Resume.find(dateFilter)
+            AdminResume.find(dateFilter)
                 .sort({ views: -1 })
                 .limit(10)
                 .populate('userId', 'name email')
@@ -286,7 +286,7 @@ class AnalyticsController {
                 .lean(),
 
             // Top resumes by downloads
-            Resume.find(dateFilter)
+            AdminResume.find(dateFilter)
                 .sort({ downloads: -1 })
                 .limit(10)
                 .populate('userId', 'name email')
@@ -294,7 +294,7 @@ class AnalyticsController {
                 .lean(),
 
             // Average resume statistics
-            Resume.aggregate([
+            AdminResume.aggregate([
                 { $match: dateFilter },
                 {
                     $group: {
@@ -324,14 +324,14 @@ class AnalyticsController {
             templatePerformance
         ] = await Promise.all([
             // Template usage count
-            Resume.aggregate([
+            AdminResume.aggregate([
                 { $match: dateFilter },
                 { $group: { _id: '$template', count: { $sum: 1 } } },
                 { $sort: { count: -1 } }
             ]),
 
             // Template popularity over time
-            Resume.aggregate([
+            AdminResume.aggregate([
                 { $match: dateFilter },
                 {
                     $group: {
@@ -346,7 +346,7 @@ class AnalyticsController {
             ]),
 
             // Template performance (views/downloads)
-            Resume.aggregate([
+            AdminResume.aggregate([
                 { $match: dateFilter },
                 {
                     $group: {
@@ -370,4 +370,4 @@ class AnalyticsController {
     }
 }
 
-module.exports = AnalyticsController;
+export default AnalyticsController;

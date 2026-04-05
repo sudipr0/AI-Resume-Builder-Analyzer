@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# AI Resume Builder - Quick Start Script
+# Resumecraft - Quick Start Script
 # This script starts both frontend and backend servers
 
 set -e
@@ -9,7 +9,7 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$PROJECT_DIR/backend"
 FRONTEND_DIR="$PROJECT_DIR/frontend"
 
-echo "🚀 AI Resume Builder & Analyzer - Quick Start"
+echo "🚀 Resumecraft & Analyzer - Quick Start"
 echo "=============================================="
 echo ""
 

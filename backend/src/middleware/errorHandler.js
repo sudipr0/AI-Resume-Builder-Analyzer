@@ -2,73 +2,72 @@
 import logger from '../utils/logger.js';
 
 const errorHandler = (err, req, res, next) => {
-    // Log the error
-    logger.error('❌ Error:', {
+    let error = { ...err };
+    error.message = err.message;
+
+    // Log the full error for internal tracking
+    logger.error('💥 ERROR:', {
+        name: err.name,
         message: err.message,
+        statusCode: err.statusCode || 500,
         code: err.code || 'INTERNAL_ERROR',
-        stack: err.stack,
         path: req.path,
         method: req.method,
-        ip: req.ip,
-        timestamp: err.timestamp || new Date().toISOString()
+        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+        timestamp: new Date().toISOString()
     });
 
-    // Determine status code
-    const statusCode = err.statusCode || 500;
-
-    // Check if it's a 404 error from our notFoundHandler
-    if (statusCode === 404) {
-        // For API clients, return JSON
-        if (req.originalUrl.startsWith('/api') || req.originalUrl.startsWith('/admin/api')) {
-            return res.status(404).json({
-                success: false,
-                error: 'Not Found',
-                message: err.message,
-                code: err.code || 'NOT_FOUND',
-                timestamp: err.timestamp,
-                path: req.originalUrl,
-                method: req.method,
-                suggestions: err.suggestions || []
-            });
-        }
-
-        // For HTML requests (browsers), check if we should return HTML
-        if (req.accepts('html') && !req.accepts('json')) {
-            // You can render an HTML error page here
-            return res.status(404).send(`
-                <!DOCTYPE html>
-                <html>
-                <head><title>404 Not Found</title></head>
-                <body>
-                    <h1>404 - Page Not Found</h1>
-                    <p>${err.message}</p>
-                    <a href="/">Go Home</a>
-                </body>
-                </html>
-            `);
-        }
+    // Mongoose bad ObjectId
+    if (err.name === 'CastError') {
+        const message = `Resource not found with id of ${err.value}`;
+        error = { message, statusCode: 404, code: 'RESOURCE_NOT_FOUND' };
     }
 
-    // For other errors, return appropriate response
-    const response = {
+    // Mongoose duplicate key
+    if (err.code === 11000) {
+        const message = 'Duplicate field value entered';
+        error = { message, statusCode: 400, code: 'DUPLICATE_FIELD' };
+    }
+
+    // Mongoose validation error
+    if (err.name === 'ValidationError') {
+        const message = Object.values(err.errors).map(val => val.message);
+        error = { message, statusCode: 400, code: 'VALIDATION_ERROR', details: message };
+    }
+
+    // JWT errors
+    if (err.name === 'JsonWebTokenError') {
+        const message = 'Invalid token. Please log in again.';
+        error = { message, statusCode: 401, code: 'INVALID_TOKEN' };
+    }
+
+    if (err.name === 'TokenExpiredError') {
+        const message = 'Your token has expired. Please log in again.';
+        error = { message, statusCode: 401, code: 'TOKEN_EXPIRED' };
+    }
+
+    // Set defaults if not already set
+    const statusCode = error.statusCode || 500;
+    const responseBody = {
         success: false,
-        error: err.message || 'Internal Server Error',
-        ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
-        timestamp: err.timestamp || new Date().toISOString()
+        error: error.message || 'Internal Server Error',
+        code: error.code || 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString()
     };
 
-    // Add additional info for validation errors
-    if (err.name === 'ValidationError') {
-        response.errors = err.errors;
-        response.code = 'VALIDATION_ERROR';
+    // Add details if available (like validation errors)
+    if (error.details) {
+        responseBody.details = error.details;
     }
 
-    // Add code if present
-    if (err.code) {
-        response.code = err.code;
+    // Add stack trace only in development
+    if (process.env.NODE_ENV === 'development') {
+        responseBody.stack = err.stack;
     }
 
-    res.status(statusCode).json(response);
+    res.status(statusCode).json(responseBody);
 };
 
+export { errorHandler };
 export default errorHandler;
+

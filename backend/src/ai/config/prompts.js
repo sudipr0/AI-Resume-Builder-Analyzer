@@ -1,20 +1,20 @@
 // backend/src/ai/config/prompts.js
 export const PROMPTS = {
     system: {
-        resumeParser: \`You are a resume parser. Extract structured data from the resume text and return ONLY valid JSON, no markdown, no explanation.\`,
-        resumeExpert: \`You are an expert resume writer. Always respond with only what is requested, no explanation.\`,
-        resumeOptimizer: \`You are an expert resume optimizer. Always respond with valid JSON.\`,
-        atsExpert: \`You are an ATS (Applicant Tracking System) expert. Analyze how well this resume matches the job description. Return ONLY valid JSON.\`,
-        careerCoach: \`You are an expert career coach.\`,
-        resumeEditor: \`You are an expert resume editor. Improve the following resume section. Return ONLY the improved content in the same format as input (plain text or JSON array).\`,
+        resumeParser: `You are a resume parser. Extract structured data from the resume text and return ONLY valid JSON, no markdown, no explanation.`,
+        resumeExpert: `You are an expert resume writer. Always respond with only what is requested, no explanation.`,
+        resumeOptimizer: `You are an expert resume optimizer. Always respond with valid JSON.`,
+        atsExpert: `You are an ATS (Applicant Tracking System) expert. Analyze how well this resume matches the job description. Return ONLY valid JSON.`,
+        careerCoach: `You are an expert career coach.`,
+        resumeEditor: `You are an expert resume editor. Improve the following resume section. Return ONLY the improved content in the same format as input (plain text or JSON array).`,
         // Legacy system prompts to prevent breaking changes while transitioning
-        analyzerExpert: \`You are an expert ATS analyst who understands exactly how applicant tracking systems score resumes. You provide actionable feedback to improve resume scores. Always respond with valid JSON.\`,
-        keywordExpert: \`You are an expert at extracting keywords and requirements from job descriptions. You understand which skills are critical for ATS systems. Always respond with valid JSON.\`
+        analyzerExpert: `You are an expert ATS analyst who understands exactly how applicant tracking systems score resumes. You provide actionable feedback to improve resume scores. Always respond with valid JSON.`,
+        keywordExpert: `You are an expert at extracting keywords and requirements from job descriptions. You understand which skills are critical for ATS systems. Always respond with valid JSON.`
     },
 
     // 1. Resume Text Extraction Prompt
     extractText: (text) => {
-        return \`Return this exact structure:
+        return `Return this exact structure:
 {
   "personal": { "name": "", "email": "", "phone": "", "location": "", "linkedin": "", "website": "" },
   "summary": "",
@@ -31,12 +31,12 @@ Rules:
 - Return ONLY the JSON object, nothing else
 
 Resume text:
-\${text}\`;
+${text}`;
     },
 
     // 2. Bullet Point Enhancer Prompt (Replacing generateBullets / enhanceBullet)
     enhanceBullet: (jobTitle, bulletText) => {
-        return \`Rewrite the following resume bullet point to be stronger and more impactful.
+        return `Rewrite the following resume bullet point to be stronger and more impactful.
 
 Rules:
 - Start with a powerful action verb (Led, Built, Increased, Reduced, Designed, Launched, etc.)
@@ -46,14 +46,14 @@ Rules:
 - Remove weak phrases like "responsible for" or "helped with"
 - Return ONLY the improved bullet, no explanation, no quotes
 
-Job Title: \${jobTitle}
-Original Bullet: \${bulletText}\`;
+Job Title: ${jobTitle}
+Original Bullet: ${bulletText}`;
     },
     
     // Legacy support for generateBullets using the new enhancer conceptually
     generateBullets: (context) => {
         // Fallback for previous implementation
-        return \`Rewrite the following resume bullet point to be stronger and more impactful.
+        return `Rewrite the following resume bullet point to be stronger and more impactful.
 Rules:
 - Start with a powerful action verb (Led, Built, Increased, Reduced, Designed, Launched, etc.)
 - Add specific numbers or percentages if the original hints at scale
@@ -61,12 +61,12 @@ Rules:
 - Remove weak phrases like "responsible for" or "helped with"
 - Return ONLY the improved bullet in JSON format {"bullets": [{"text": "...", "impact": "high", "metrics": [], "keywords": []}]}
 
-Context or Original Bullet: \${JSON.stringify(context, null, 2)}\`;
+Context or Original Bullet: ${JSON.stringify(context, null, 2)}`;
     },
 
     // 3. Professional Summary Generator Prompt
     generateProfessionalSummary: (resumeData) => {
-        return \`Write a compelling 3-sentence professional summary for this candidate.
+        return `Write a compelling 3-sentence professional summary for this candidate.
 
 Rules:
 - Sentence 1: Who they are + years of experience + core expertise
@@ -77,7 +77,7 @@ Rules:
 - Return ONLY the summary paragraph, no labels, no quotes
 
 Candidate data:
-\${JSON.stringify(resumeData, null, 2)}\`;
+${JSON.stringify(resumeData, null, 2)}`;
     },
     
     // Legacy support for generateSummary
@@ -87,7 +87,7 @@ Candidate data:
 
     // 4. Job Description Tailoring Prompt
     tailorResume: (resumeData, jobDescription) => {
-        return \`Tailor the candidate's resume to better match the target job description.
+        return `Tailor the candidate's resume to better match the target job description.
 
 Your task:
 1. Identify the top 10 keywords and skills from the job description
@@ -105,15 +105,15 @@ Return ONLY valid JSON in this structure:
 }
 
 Job Description:
-\${jobDescription}
+${jobDescription}
 
 Candidate Resume:
-\${JSON.stringify(resumeData, null, 2)}\`;
+${JSON.stringify(resumeData, null, 2)}`;
     },
 
     // 5. ATS Score Checker Prompt
     checkATSScore: (resumeData, jobDescription) => {
-        return \`Evaluate on these criteria:
+        return `Evaluate on these criteria:
 - Keyword match rate (how many JD keywords appear in resume)
 - Skills alignment (required vs candidate skills)
 - Job title relevance
@@ -137,10 +137,10 @@ Return ONLY valid JSON:
 }
 
 Job Description:
-\${jobDescription}
+${jobDescription}
 
 Resume:
-\${JSON.stringify(resumeData, null, 2)}\`;
+${JSON.stringify(resumeData, null, 2)}`;
     },
     
     // Legacy ATS support
@@ -153,7 +153,7 @@ Resume:
 
     // 6. Cover Letter Generator Prompt
     generateCoverLetter: (name, jobTitle, companyName, resumeData, jobDescription) => {
-        return \`Write a professional cover letter for this candidate applying to the job below.
+        return `Write a professional cover letter for this candidate applying to the job below.
 
 Structure:
 - Paragraph 1: Hook — why this company, why this role (use company name)
@@ -168,18 +168,18 @@ Rules:
 - Use the candidate's actual achievements with numbers where available
 - Return ONLY the cover letter text, no subject line, no labels
 
-Candidate Name: \${name}
-Job Title: \${jobTitle}
-Company Name: \${companyName}
-Resume: \${JSON.stringify(resumeData, null, 2)}
-Job Description: \${jobDescription}\`;
+Candidate Name: ${name}
+Job Title: ${jobTitle}
+Company Name: ${companyName}
+Resume: ${JSON.stringify(resumeData, null, 2)}
+Job Description: ${jobDescription}`;
     },
 
     // 7. Section-Specific Improver Prompt
     improveSection: (sectionType, sectionContent) => {
-        return \`Improve the following resume section.
+        return `Improve the following resume section.
 
-Section Type: \${sectionType}
+Section Type: ${sectionType}
 
 Rules:
 - Fix grammar and spelling
@@ -189,7 +189,7 @@ Rules:
 - Return ONLY the improved content in the same format as input (plain text or JSON array)
 
 Original Content:
-\${typeof sectionContent === 'object' ? JSON.stringify(sectionContent, null, 2) : sectionContent}\`;
+${typeof sectionContent === 'object' ? JSON.stringify(sectionContent, null, 2) : sectionContent}`;
     },
     
     // Legacy optimizeSummary support
@@ -199,40 +199,40 @@ Original Content:
 
     // Legacy support for extracts and skills
     extractKeywords: (text) => {
-        return \`Extract all key skills, technologies, and qualifications from this job description.
+        return `Extract all key skills, technologies, and qualifications from this job description.
 TEXT:
-\${text}
+${text}
 RESPONSE FORMAT (JSON):
 {
   "keywords": ["skill1", "skill2"],
   "categories": { "technical": [], "soft": [], "tools": [], "methodology": [] },
   "suggestedRole": "Role Title",
   "criticalKeywords": []
-}\`;
+}`;
     },
     suggestSkills: (currentSkills, jobDescription) => {
-        return \`Suggest relevant skills based on current skills and job description.
+        return `Suggest relevant skills based on current skills and job description.
 CURRENT SKILLS:
-\${currentSkills.join(', ')}
+${currentSkills.join(', ')}
 
-\${jobDescription ? \`JOB DESCRIPTION:\n\${jobDescription}\n\` : ''}
+${jobDescription ? `JOB DESCRIPTION:\n${jobDescription}\n` : ''}
 RESPONSE FORMAT (JSON):
 {
   "suggested": [{ "name": "Skill", "relevance": 95, "category": "technical", "isCritical": true, "reason": "reason" }],
   "missingCritical": [],
   "categories": { "technical": [], "tools": [] }
-}\`;
+}`;
     },
 
     // 1. Resume Completion Checker Prompt
     checkResumeCompletion: (resumeData, jobTitle, industry, jobRequirements) => {
-        return \`Analyze resume completion status and determine if it's ready for submission.
+        return `Analyze resume completion status and determine if it's ready for submission.
 
 RESUME DATA:
-\${typeof resumeData === 'string' ? resumeData : JSON.stringify(resumeData)}
-JOB_TITLE: \${jobTitle || 'Not specified'}
-INDUSTRY: \${industry || 'Not specified'}
-REQUIREMENTS: \${jobRequirements || 'Not specified'}
+${typeof resumeData === 'string' ? resumeData : JSON.stringify(resumeData)}
+JOB_TITLE: ${jobTitle || 'Not specified'}
+INDUSTRY: ${industry || 'Not specified'}
+REQUIREMENTS: ${jobRequirements || 'Not specified'}
 
 Evaluate each section and provide completion status:
 
@@ -262,16 +262,16 @@ Evaluate each section and provide completion status:
   "optionalEnhancements": [],
   "recommendations": { "critical": [], "important": [], "niceToHave": [] },
   "estimatedTimeToComplete": { "critical": "15 minutes", "all": "45 minutes" }
-}\`;
+}`;
     },
 
     // 2. Draft VS Complete Classification Prompt
     classifyResumeStatus: (resumeData, userActivity) => {
-        return \`Determine if resume is a draft or complete based on quality thresholds.
+        return `Determine if resume is a draft or complete based on quality thresholds.
 
 RESUME DATA:
-\${typeof resumeData === 'string' ? resumeData : JSON.stringify(resumeData)}
-USER_ACTIVITY: \${JSON.stringify(userActivity)}
+${typeof resumeData === 'string' ? resumeData : JSON.stringify(resumeData)}
+USER_ACTIVITY: ${JSON.stringify(userActivity)}
 
 Classification criteria:
 
@@ -316,16 +316,16 @@ Classification criteria:
     "changesSinceSave": 3,
     "recommendSave": true
   }
-}\`;
+}`;
     },
 
     // 3. Progress Tracking Prompt
     trackResumeProgress: (currentResume, previousResume, requirements) => {
-        return \`Track resume completion progress and provide actionable insights.
+        return `Track resume completion progress and provide actionable insights.
 
-CURRENT STATE: \${JSON.stringify(currentResume)}
-PREVIOUS STATE: \${JSON.stringify(previousResume)}
-JOB_REQUIREMENTS: \${requirements || 'Not specified'}
+CURRENT STATE: ${JSON.stringify(currentResume)}
+PREVIOUS STATE: ${JSON.stringify(previousResume)}
+JOB_REQUIREMENTS: ${requirements || 'Not specified'}
 
 Generate progress report:
 
@@ -355,15 +355,15 @@ Generate progress report:
     "confidence": "high",
     "requiredActions": 3
   }
-}\`;
+}`;
     },
 
     // 4. Smart Completion Prediction Prompt
     predictCompletion: (resumeData, userBehavior) => {
-        return \`Predict resume completion timeline and suggest optimal workflow.
+        return `Predict resume completion timeline and suggest optimal workflow.
 
-RESUME_DATA: \${JSON.stringify(resumeData)}
-USER_BEHAVIOR: \${JSON.stringify(userBehavior)}
+RESUME_DATA: ${JSON.stringify(resumeData)}
+USER_BEHAVIOR: ${JSON.stringify(userBehavior)}
 
 Provide prediction:
 
@@ -381,16 +381,16 @@ Provide prediction:
     "reward": "Unlock advanced ATS analysis",
     "progressToReward": 75
   }
-}\`;
+}`;
     },
 
     // 5. Intelligent Draft Saving Prompt
     intelligentDraftSaving: (resumeData, editHistory, changes) => {
-        return \`Determine when to auto-save and what version to keep.
+        return `Determine when to auto-save and what version to keep.
 
-RESUME_DATA: \${JSON.stringify(resumeData)}
-EDIT_HISTORY: \${JSON.stringify(editHistory)}
-CHANGES: \${JSON.stringify(changes)}
+RESUME_DATA: ${JSON.stringify(resumeData)}
+EDIT_HISTORY: ${JSON.stringify(editHistory)}
+CHANGES: ${JSON.stringify(changes)}
 
 Provide saving strategy:
 
@@ -403,15 +403,15 @@ Provide saving strategy:
   "draftMetadata": {},
   "suggestions": { "beforeNextSave": [] },
   "backup": { "createBackup": true, "backupReason": "Major changes detected", "restorePoint": "before_experience_update" }
-}\`;
+}`;
     },
 
     // 6. Completion Validation Prompt
     validateCompletion: (resumeData, requirements) => {
-        return \`Validate if resume meets all completion criteria.
+        return `Validate if resume meets all completion criteria.
 
-RESUME: \${typeof resumeData === 'string' ? resumeData : JSON.stringify(resumeData)}
-REQUIREMENTS: \${JSON.stringify(requirements)}
+RESUME: ${typeof resumeData === 'string' ? resumeData : JSON.stringify(resumeData)}
+REQUIREMENTS: ${JSON.stringify(requirements)}
 
 Validation result:
 
@@ -427,16 +427,16 @@ Validation result:
     "verifiedBy": "AI System",
     "certificateId": "RES-2024-001"
   }
-}\`;
+}`;
     },
 
     // 7. Resume Readiness Scorecard Prompt
     readinessScorecard: (resumeData, role, standards) => {
-        return \`Generate comprehensive readiness scorecard for resume submission.
+        return `Generate comprehensive readiness scorecard for resume submission.
 
-RESUME: \${typeof resumeData === 'string' ? resumeData : JSON.stringify(resumeData)}
-TARGET_ROLE: \${role || 'Not specified'}
-INDUSTRY_STANDARDS: \${JSON.stringify(standards || {})}
+RESUME: ${typeof resumeData === 'string' ? resumeData : JSON.stringify(resumeData)}
+TARGET_ROLE: ${role || 'Not specified'}
+INDUSTRY_STANDARDS: ${JSON.stringify(standards || {})}
 
 Scorecard:
 
@@ -461,17 +461,17 @@ Scorecard:
     "vsTopCandidates": "-5",
     "percentile": "85th"
   }
-}\`;
+}`;
     },
 
     // 8. Auto-Complete & Suggest Prompt
     autoCompleteSuggest: (sectionName, content, completedData, requirements) => {
-        return \`Generate intelligent auto-complete suggestions for incomplete sections.
+        return `Generate intelligent auto-complete suggestions for incomplete sections.
 
-INCOMPLETE_SECTION: \${sectionName}
-CURRENT_CONTENT: \${JSON.stringify(content)}
-COMPLETED_SECTIONS: \${JSON.stringify(completedData)}
-JOB_REQUIREMENTS: \${JSON.stringify(requirements || {})}
+INCOMPLETE_SECTION: ${sectionName}
+CURRENT_CONTENT: ${JSON.stringify(content)}
+COMPLETED_SECTIONS: ${JSON.stringify(completedData)}
+JOB_REQUIREMENTS: ${JSON.stringify(requirements || {})}
 
 Provide suggestions:
 
@@ -495,21 +495,21 @@ Provide suggestions:
     "withSuggestions": 92,
     "potentialGain": 27
   }
-}\`;
+}`;
     },
 
     // 9. Section Quality Assessment Prompt
     assessSectionQuality: (sectionName, content, standard) => {
-        return \`Assess quality of each resume section and provide detailed feedback.
+        return `Assess quality of each resume section and provide detailed feedback.
 
-SECTION: \${sectionName}
-CONTENT: \${JSON.stringify(content)}
-INDUSTRY_STANDARD: \${JSON.stringify(standard || {})}
+SECTION: ${sectionName}
+CONTENT: ${JSON.stringify(content)}
+INDUSTRY_STANDARD: ${JSON.stringify(standard || {})}
 
 Quality assessment:
 
 {
-  "sectionName": "\${sectionName}",
+  "sectionName": "${sectionName}",
   "overallQuality": 82,
   "metrics": {
     "actionVerbs": { "score": 85, "found": [], "missing": [], "recommendations": "" },
@@ -529,15 +529,15 @@ Quality assessment:
     "current": 82,
     "gap": 3
   }
-}\`;
+}`;
     },
 
     // 10. Final Verification Prompt
     finalVerification: (resumeData, checklist) => {
-        return \`Perform final verification before marking resume as complete.
+        return `Perform final verification before marking resume as complete.
 
-RESUME: \${typeof resumeData === 'string' ? resumeData : JSON.stringify(resumeData)}
-COMPLETION_CHECKLIST: \${JSON.stringify(checklist || {})}
+RESUME: ${typeof resumeData === 'string' ? resumeData : JSON.stringify(resumeData)}
+COMPLETION_CHECKLIST: ${JSON.stringify(checklist || {})}
 
 Verification result:
 
@@ -563,6 +563,6 @@ Verification result:
     "ifIncomplete": "Complete recommended fixes",
     "ifDraft": "Continue editing"
   }
-}\`;
+}`;
     }
 };

@@ -1,5 +1,5 @@
-const SettingService = require('../services/SettingService');
-const LogService = require('../services/LogService');
+import SettingService from '../services/SettingService.js';
+import LogService from '../services/LogService.js';
 
 class SettingController {
     // Get all settings
@@ -254,4 +254,4 @@ class SettingController {
     }
 }
 
-module.exports = new SettingController();
+export default new SettingController();

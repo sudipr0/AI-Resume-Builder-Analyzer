@@ -1,6 +1,6 @@
-const Admin = require('../models/Admin');
-const Role = require('../models/Role');
-const mongoose = require('mongoose');
+import Admin from '../models/Admin.js';
+import Role from '../models/Role.js';
+import mongoose from 'mongoose';
 
 class AdminService {
     // Create new admin
@@ -216,4 +216,4 @@ class AdminService {
     }
 }
 
-module.exports = AdminService;
+export default AdminService;

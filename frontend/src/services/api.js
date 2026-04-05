@@ -360,6 +360,18 @@ const authService = {
           return { success: false, valid: false, authenticated: false };
         }
 
+        if (token.startsWith('demo-token') || token.startsWith('offline-token')) {
+          logger.info('📱 Demo/Offline token detected - skipping backend verification');
+          const user = userManager.getCurrentUser();
+          return {
+            success: true,
+            valid: true,
+            authenticated: true,
+            offline: token.startsWith('offline-token'),
+            user
+          };
+        }
+
         if (!navigator.onLine) {
           logger.info('📴 Offline mode - using cached user');
           const user = userManager.getCurrentUser();

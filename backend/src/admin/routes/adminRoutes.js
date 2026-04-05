@@ -2,13 +2,13 @@
 import express from 'express';
 const router = express.Router();
 
-import * as authController from '../controllers/authController.js';
-import * as adminController from '../controllers/adminController.js';
-import * as dashboardController from '../controllers/dashboardController.js';
-import * as resumeController from '../controllers/resumeController.js';
-import * as settingController from '../controllers/settingController.js';
-import * as logController from '../controllers/logController.js';
-import * as userController from '../controllers/userController.js';
+import authController from '../controllers/authController.js';
+import adminController from '../controllers/adminController.js';
+import dashboardController from '../controllers/dashboardController.js';
+import resumeController from '../controllers/resumeController.js';
+import settingController from '../controllers/settingController.js';
+import logController from '../controllers/logController.js';
+import userController from '../controllers/userController.js';
 
 import {
     authenticateAdmin,
@@ -42,9 +42,9 @@ router.get('/test', (req, res) => {
 // PUBLIC ROUTES
 // ======================
 router.post('/auth/login', authController.login);
-router.post('/auth/verify-2fa', authController.verify2FA);
-router.post('/auth/forgot-password', authController.forgotPassword);
-router.post('/auth/reset-password', authController.resetPassword);
+// router.post('/auth/verify-2fa', authController.verify2FA);
+// router.post('/auth/forgot-password', authController.forgotPassword);
+// router.post('/auth/reset-password', authController.resetPassword);
 
 // ======================
 // PROTECTED ROUTES (Require Authentication)
@@ -60,9 +60,9 @@ router.post('/auth/change-password', authController.changePassword);
 router.post('/auth/logout', authController.logout);
 
 // 2FA Routes
-router.get('/auth/2fa/setup', authController.setup2FA);
-router.post('/auth/2fa/enable', authController.enable2FA);
-router.post('/auth/2fa/disable', authController.disable2FA);
+// router.get('/auth/2fa/setup', authController.setup2FA);
+// router.post('/auth/2fa/enable', authController.enable2FA);
+// router.post('/auth/2fa/disable', authController.disable2FA);
 
 // ======================
 // DASHBOARD ROUTES
@@ -72,20 +72,20 @@ router.get('/dashboard/stats',
     dashboardController.getStats
 );
 
-router.get('/dashboard/analytics',
-    checkPermission('dashboard.analytics'),
-    dashboardController.getAnalytics
-);
+// router.get('/dashboard/analytics',
+//     checkPermission('dashboard.analytics'),
+//     dashboardController.getAnalytics
+// );
 
 router.get('/dashboard/recent-activities',
     checkPermission('dashboard.view'),
     dashboardController.getRecentActivities
 );
 
-router.get('/dashboard/system-health',
-    checkRole(['super_admin', 'admin']),
-    dashboardController.getSystemHealth
-);
+// router.get('/dashboard/system-health',
+//     checkRole(['super_admin', 'admin']),
+//     dashboardController.getSystemHealth
+// );
 
 // ======================
 // ADMIN MANAGEMENT ROUTES
@@ -231,10 +231,10 @@ router.put('/settings',
     settingController.updateSettings
 );
 
-router.put('/settings/:key',
-    checkPermission('settings.edit'),
-    settingController.updateSetting
-);
+// router.put('/settings/:key',
+//     checkPermission('settings.edit'),
+//     settingController.updateSetting
+// );
 
 router.get('/settings/system/info',
     checkRole(['super_admin']),

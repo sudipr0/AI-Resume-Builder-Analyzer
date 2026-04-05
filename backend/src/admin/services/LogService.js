@@ -1,5 +1,5 @@
-const AdminLog = require('../models/AdminLog');
-const Admin = require('../models/Admin');
+import AdminLog from '../models/AdminLog.js';
+import Admin from '../models/Admin.js';
 
 class LogService {
     // Create log entry
@@ -198,10 +198,10 @@ class LogService {
     }
 
     // Clear old logs (keep last 90 days)
-    static async clearOldLogs() {
+    static async clearOldLogs(days = 90) {
         try {
             const cutoffDate = new Date();
-            cutoffDate.setDate(cutoffDate.getDate() - 90);
+            cutoffDate.setDate(cutoffDate.getDate() - days);
 
             const result = await AdminLog.deleteMany({
                 timestamp: { $lt: cutoffDate }
@@ -209,7 +209,7 @@ class LogService {
 
             return {
                 deletedCount: result.deletedCount,
-                message: `Cleared logs older than ${cutoffDate.toISOString()}`
+                message: `Cleared logs older than ${days} days (${cutoffDate.toISOString()})`
             };
         } catch (error) {
             throw error;
@@ -260,4 +260,4 @@ class LogService {
     }
 }
 
-module.exports = LogService;
+export default LogService;

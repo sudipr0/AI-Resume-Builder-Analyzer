@@ -36,8 +36,16 @@ const upload = multer({
     }
 });
 
-// Use authentication middleware
-// Assuming it attaches req.user
-router.post('/resume', protect, upload.single('resumeFile'), extractResumeContent);
+// Use authentication middleware when in production. For development we allow a mock/dev upload flow
+// so it's easy to test file uploads without an auth token.
+const middlewares = [];
+if (process.env.NODE_ENV === 'production') {
+    middlewares.push(protect);
+} else {
+    console.log('⚠️ Development: resume upload route is open (no auth required)');
+}
+middlewares.push(upload.single('resumeFile'));
+
+router.post('/resume', ...middlewares, extractResumeContent);
 
 export default router;

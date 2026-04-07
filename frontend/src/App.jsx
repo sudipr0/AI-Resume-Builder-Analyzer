@@ -7,7 +7,8 @@ import {
   useParams,
   Navigate,
   useLocation,
-  Outlet
+  Outlet,
+  useNavigate
 } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -26,6 +27,7 @@ import AnalysisHistoryPage from './pages/analyzer/AnalysisHistoryPage';
 
 // Global Components
 import Navbar from './components/Navbar';
+import EnhancedNavbar from './components/navbar/EnhancedNavbar';
 import Footer from './components/Footer';
 import ErrorBoundary from './components/ErrorBoundary';
 import MaintenanceMode from './components/MaintenanceMode';
@@ -50,7 +52,7 @@ const queryClient = new QueryClient({
 // ================= ENVIRONMENT CONFIG =================
 const ENV = {
   API_URL: import.meta.env.VITE_API_URL || 'http://localhost:5001/api',
-  APP_NAME: import.meta.env.VITE_APP_NAME || 'ResumeCraft Pro',
+  APP_NAME: import.meta.env.VITE_APP_NAME || 'ResumeBanau',
   APP_VERSION: import.meta.env.VITE_APP_VERSION || '1.0.0',
   APP_MODE: import.meta.env.MODE || 'development',
   ENABLE_AI: import.meta.env.VITE_ENABLE_AI === 'true',
@@ -127,6 +129,8 @@ const ResumeDetail = lazyWithRetry(() => import('./pages/dashboard/ResumeDetail'
 const BuilderHome = lazyWithRetry(() => import('./pages/builder/BuilderHome'), 'Builder Home');
 const Builder = lazyWithRetry(() => import('./pages/builder/Builder'), 'Resume Builder');
 const UploadResume = lazyWithRetry(() => import('./pages/builder/UploadResume'), 'Upload Resume');
+const PasteResume = lazyWithRetry(() => import('./pages/builder/PasteResume'), 'Paste Resume');
+const ImportResumeUrl = lazyWithRetry(() => import('./pages/builder/ImportResumeUrl'), 'Import from URL');
 const Preview = lazyWithRetry(() => import('./pages/builder/Preview'), 'Preview');
 const ShareResume = lazyWithRetry(() => import('./pages/builder/ShareResume'), 'Share Resume');
 const TemplatePage = lazyWithRetry(() => import('./pages/builder/Templatepage'), 'Templates');
@@ -134,6 +138,10 @@ const TemplatePage = lazyWithRetry(() => import('./pages/builder/Templatepage'),
 // Analyzer Pages
 const AIAnalyzerPage = lazyWithRetry(() => import('./pages/analyzer/AIAnalyzerPage'), 'AI Analyzer');
 const AnalyzerResults = lazyWithRetry(() => import('./pages/analyzer/AIAnalysisReport'), 'Analysis Results');
+
+// History Pages
+const ResumeHistoryPage = lazyWithRetry(() => import('./pages/ResumeHistoryPage'), 'Resume History');
+const AnalyzerHistoryPage = lazyWithRetry(() => import('./pages/AnalyzerHistoryPage'), 'Analyzer History');
 
 // Admin Pages
 const AdminLogin = lazyWithRetry(() => import('./admin/pages/Login'), 'Admin Login');
@@ -154,6 +162,12 @@ const ProtectedRoute = ({ children, requireVerified = false }) => {
   // Show loading while checking auth
   if (loading) {
     return <PageLoading />;
+  }
+
+  // TEMPORARY: Allow access in development mode for testing
+  const isDevelopment = import.meta.env.MODE === 'development';
+  if (isDevelopment) {
+    return children;
   }
 
   // Not authenticated - redirect to login
@@ -236,9 +250,9 @@ const AdminRoute = ({ children }) => {
 };
 
 // ================= LAYOUT COMPONENTS =================
-const PublicLayout = () => (
+const PublicLayout = ({ darkMode, setDarkMode }) => (
   <div className="min-h-screen flex flex-col">
-    <Navbar />
+    <Navbar darkMode={darkMode} setDarkMode={setDarkMode} />
     <main className="flex-1">
       <Outlet />
     </main>
@@ -246,30 +260,35 @@ const PublicLayout = () => (
   </div>
 );
 
-const AuthLayout = () => (
+const AuthLayout = ({ darkMode, setDarkMode }) => (
   <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 to-indigo-50">
-    <Navbar />
-    <div className="flex-1 flex items-center justify-center p-4 pt-20">
+    <div className="flex-1 flex items-center justify-center p-4">
       <Outlet />
     </div>
   </div>
 );
 
-const DashboardLayout = () => (
-  <div className="min-h-screen bg-gray-50">
-    <Outlet />
+const DashboardLayout = ({ darkMode, setDarkMode }) => (
+  <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <main className="flex-1">
+      <Outlet />
+    </main>
   </div>
 );
 
-const BuilderLayout = () => (
-  <div className="min-h-screen bg-gray-50">
-    <Outlet />
+const BuilderLayout = ({ darkMode, setDarkMode }) => (
+  <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <main className="flex-1">
+      <Outlet />
+    </main>
   </div>
 );
 
-const AnalyzerLayout = () => (
-  <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
-    <Outlet />
+const AnalyzerLayout = ({ darkMode, setDarkMode }) => (
+  <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 dark:from-gray-900 dark:to-blue-900">
+    <main className="flex-1">
+      <Outlet />
+    </main>
   </div>
 );
 
@@ -344,6 +363,8 @@ const BuilderWrapper = ({ isNew = true }) => {
 
 // ================= APP CONTENT =================
 function AppContent() {
+  const [darkMode, setDarkMode] = useState(false);
+
   if (ENV.MAINTENANCE_MODE) {
     return <MaintenanceMode />;
   }
@@ -384,7 +405,7 @@ function AppContent() {
       >
         <Routes>
           {/* ================= PUBLIC ROUTES ================= */}
-          <Route element={<PublicLayout />}>
+          <Route element={<PublicLayout darkMode={darkMode} setDarkMode={setDarkMode} />}>
             <Route path="/" element={<Home />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
@@ -393,7 +414,7 @@ function AppContent() {
           </Route>
 
           {/* ================= AUTH ROUTES - WITH GUEST ROUTE ================= */}
-          <Route element={<AuthLayout />}>
+          <Route element={<AuthLayout darkMode={darkMode} setDarkMode={setDarkMode} />}>
             <Route path="/login" element={
               <GuestRoute>
                 <Login />
@@ -433,12 +454,13 @@ function AppContent() {
           {/* ================= DASHBOARD ROUTES - WITH PROTECTED ROUTE ================= */}
           <Route element={
             <ProtectedRoute>
-              <DashboardLayout />
+              <DashboardLayout darkMode={darkMode} setDarkMode={setDarkMode} />
             </ProtectedRoute>
           }>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/resumes" element={<Resumes />} />
+            <Route path="/resume-history" element={<ResumeHistoryPage />} />
             <Route path="/resumes/:id" element={<ResumeDetail />} />
             <Route path="/resumes/:id/share" element={<ShareResume />} />
           </Route>
@@ -446,19 +468,21 @@ function AppContent() {
           {/* ================= BUILDER ROUTES - WITH PROTECTED ROUTE ================= */}
           <Route element={
             <ProtectedRoute>
-              <BuilderLayout />
+              <BuilderLayout darkMode={darkMode} setDarkMode={setDarkMode} />
             </ProtectedRoute>
           }>
             <Route path="/builder" element={<BuilderHome />} />
             <Route path="/builder/templates" element={<TemplatePage />} />
             <Route path="/builder/preview/:id" element={<Preview />} />
             <Route path="/builder/upload" element={<UploadResume />} />
+            <Route path="/builder/paste" element={<PasteResume />} />
+            <Route path="/builder/import-url" element={<ImportResumeUrl />} />
           </Route>
 
           {/* Special Builder Routes with Data Passing */}
           <Route element={
             <ProtectedRoute>
-              <BuilderLayout />
+              <BuilderLayout darkMode={darkMode} setDarkMode={setDarkMode} />
             </ProtectedRoute>
           }>
             <Route path="/builder/import" element={<ImportResumeWrapper />} />
@@ -469,13 +493,14 @@ function AppContent() {
           {/* ================= ANALYZER ROUTES - WITH PROTECTED ROUTE ================= */}
           <Route element={
             <ProtectedRoute>
-              <AnalyzerLayout />
+              <AnalyzerLayout darkMode={darkMode} setDarkMode={setDarkMode} />
             </ProtectedRoute>
           }>
             <Route path="/analyzer" element={<AIAnalyzerPage />} />
             <Route path="/analyzer/results" element={<AnalyzerResults />} />
             <Route path="/analyzer/results/:id" element={<AnalyzerResults />} />
-            <Route path="/analyzer/history" element={<AnalysisHistoryPage />} />
+            <Route path="/analyzer/history" element={<AnalyzerHistoryPage />} />
+            <Route path="/analyzer-history" element={<AnalyzerHistoryPage />} />
           </Route>
 
           {/* ================= ADMIN ROUTES ================= */}

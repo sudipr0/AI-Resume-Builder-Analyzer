@@ -709,6 +709,37 @@ export const ResumeProvider = ({ children }) => {
     return resumes.find(r => r._id === id || r.id === id);
   }, [resumes]);
 
+  // ==================== QUICK SAVE ====================
+  // Efficient save without reloading or heavy overhead
+  const quickSave = useCallback(async (data = null) => {
+    const resumeToSave = data || currentResume;
+    if (!resumeToSave || !resumeToSave._id || resumeToSave._id.startsWith('local_')) {
+      // For local resumes, just update local storage
+      if (resumeToSave) {
+        const localResumes = JSON.parse(localStorage.getItem('local_resumes') || '[]');
+        const updatedLocal = localResumes.map(r => 
+          (r._id === resumeToSave._id || r.id === resumeToSave.id) ? resumeToSave : r
+        );
+        localStorage.setItem('local_resumes', JSON.stringify(updatedLocal));
+      }
+      return resumeToSave;
+    }
+
+    try {
+      setIsSaving(true);
+      const saved = await apiService.resume.updateResume(resumeToSave._id, resumeToSave);
+      
+      setResumes(prev => prev.map(r => r._id === saved._id ? saved : r));
+      setLastUpdated(new Date());
+      setIsSaving(false);
+      return saved;
+    } catch (err) {
+      console.error('❌ Quick save failed:', err);
+      setIsSaving(false);
+      throw err;
+    }
+  }, [currentResume]);
+
   // ==================== VALUE ====================
   const value = useMemo(() => ({
     resumes,
@@ -723,6 +754,7 @@ export const ResumeProvider = ({ children }) => {
     lastUpdated,
     createResume,
     saveResume,
+    quickSave,
     deleteResume,
     loadResume,
     loadResumes,
@@ -736,7 +768,7 @@ export const ResumeProvider = ({ children }) => {
     syncSingleResumeToServer
   }), [
     resumes, currentResume, loading, error, isSaving, syncInProgress, offlineMode, lastUpdated,
-    createResume, saveResume, deleteResume, loadResume, loadResumes,
+    createResume, saveResume, quickSave, deleteResume, loadResume, loadResumes,
     refreshResumes, updateCurrentResumeData, clearCurrentResume, getResumeById,
     syncAllLocalResumes, syncSingleResumeToServer
   ]);

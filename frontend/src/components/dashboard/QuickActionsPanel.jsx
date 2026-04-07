@@ -9,7 +9,7 @@ const QuickActionsPanelIcons = ({ darkMode = false }) => {
   const navigate = useNavigate();
 
   const actions = [
-    { icon: Plus, label: 'Create', action: () => navigate('/builder/new') },
+    { icon: Plus, label: 'Create', action: () => navigate('/builder') },
     {
       icon: Upload,
       label: 'Import',
@@ -47,7 +47,7 @@ const QuickActionsPanelIcons = ({ darkMode = false }) => {
           className={`p-2.5 rounded-md transition-colors ${darkMode
             ? 'hover:bg-gray-700 text-gray-300'
             : 'hover:bg-white text-gray-600 hover:shadow-sm'
-          }`}
+            }`}
         >
           <action.icon className="w-5 h-5" />
         </motion.button>

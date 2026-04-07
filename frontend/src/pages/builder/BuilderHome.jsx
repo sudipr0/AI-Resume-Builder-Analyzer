@@ -16,7 +16,9 @@ import {
   Sparkles,
   Clock,
   Star,
-  Zap
+  Zap,
+  Clipboard,
+  Globe
 } from 'lucide-react';
 
 const BuilderHome = () => {
@@ -31,7 +33,7 @@ const BuilderHome = () => {
       title: 'Start from Scratch',
       description: 'Build a resume from the ground up with our AI-powered builder',
       icon: <Plus className="w-8 h-8" />,
-      gradient: 'bg-gradient-to-br from-blue-600 to-indigo-600', // Matches your navbar gradient
+      gradient: 'bg-gradient-to-br from-blue-600 to-indigo-600',
       delay: 0.1
     },
     {
@@ -39,7 +41,7 @@ const BuilderHome = () => {
       title: 'Upload & Edit',
       description: 'Upload an existing resume (PDF, DOCX) to edit and enhance',
       icon: <Upload className="w-8 h-8" />,
-      gradient: 'bg-gradient-to-br from-purple-600 to-pink-600', // Matches your new-resume-btn gradient
+      gradient: 'bg-gradient-to-br from-purple-600 to-pink-600',
       delay: 0.2
     },
     {
@@ -47,24 +49,43 @@ const BuilderHome = () => {
       title: 'Browse Templates',
       description: 'Choose from 12+ professional, ATS-friendly templates',
       icon: <Layout className="w-8 h-8" />,
-      gradient: 'bg-gradient-to-br from-green-600 to-emerald-600', // Matches your export button
+      gradient: 'bg-gradient-to-br from-green-600 to-emerald-600',
       delay: 0.3
+    },
+    {
+      id: 'paste',
+      title: 'Paste Resume Text',
+      description: 'Paste your existing resume content and let AI structure it for you',
+      icon: <Clipboard className="w-8 h-8" />,
+      gradient: 'bg-gradient-to-br from-cyan-500 to-sky-500',
+      delay: 0.4
+    },
+    {
+      id: 'import',
+      title: 'Import from LinkedIn URL',
+      description: 'Use a LinkedIn or resume URL to auto-fill your builder form',
+      icon: <Globe className="w-8 h-8" />,
+      gradient: 'bg-gradient-to-br from-yellow-500 to-orange-500',
+      delay: 0.5
     }
   ];
 
   const handleOptionClick = async (optionId) => {
+    // TEMPORARY: Allow access in development mode for testing
+    const isDevelopment = import.meta.env.MODE === 'development';
     if (!isAuthenticated || !user) {
-      toast.error('Please login to create a resume');
-      navigate('/login');
-      return;
+      if (!isDevelopment) {
+        toast.error('Please login to create a resume');
+        navigate('/login');
+        return;
+      }
     }
 
     setActiveLoading(optionId);
     setIsLoading(true);
 
     try {
-      // Add a small delay for better UX
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 200));
 
       switch (optionId) {
         case 'scratch':
@@ -75,6 +96,12 @@ const BuilderHome = () => {
           break;
         case 'templates':
           navigate('/builder/templates');
+          break;
+        case 'paste':
+          navigate('/builder/paste');
+          break;
+        case 'import':
+          navigate('/builder/import-url');
           break;
         default:
           navigate('/builder/new', { state: { importedData: {} } });
@@ -98,22 +125,22 @@ const BuilderHome = () => {
   return (
     <div className="min-h-screen relative overflow-hidden bg-slate-50 flex flex-col">
       {/* Animated Background Blobs */}
-      <motion.div 
-          animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
-          transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-          className="absolute -top-40 -left-40 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-50 pointer-events-none z-0"
+      <motion.div
+        animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
+        transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+        className="absolute -top-40 -left-40 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-50 pointer-events-none z-0"
       />
-      <motion.div 
-          animate={{ scale: [1, 1.5, 1], rotate: [0, -90, 0] }}
-          transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
-          className="absolute top-40 -right-20 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-50 pointer-events-none z-0"
+      <motion.div
+        animate={{ scale: [1, 1.5, 1], rotate: [0, -90, 0] }}
+        transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
+        className="absolute top-40 -right-20 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-50 pointer-events-none z-0"
       />
-      <motion.div 
-          animate={{ scale: [1, 1.1, 1], x: [0, 100, 0], y: [0, 50, 0] }}
-          transition={{ duration: 15, repeat: Infinity, ease: 'linear' }}
-          className="absolute -bottom-40 left-1/2 w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-50 pointer-events-none z-0"
+      <motion.div
+        animate={{ scale: [1, 1.1, 1], x: [0, 100, 0], y: [0, 50, 0] }}
+        transition={{ duration: 15, repeat: Infinity, ease: 'linear' }}
+        className="absolute -bottom-40 left-1/2 w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-50 pointer-events-none z-0"
       />
-      
+
       <div className="relative z-10 w-full">
         <Navbar />
       </div>
@@ -173,7 +200,7 @@ const BuilderHome = () => {
           </motion.div>
 
           {/* Main Options Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
             {creationOptions.map((option) => (
               <motion.div
                 key={option.id}

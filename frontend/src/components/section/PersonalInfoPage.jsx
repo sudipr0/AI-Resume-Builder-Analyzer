@@ -33,10 +33,10 @@ const PersonalInfoPage = ({ data = {}, onUpdate, onNext, onPrev }) => {
     summary: data?.summary || '' // Added summary field (though it's separate in wizard)
   }));
 
-  const [errors, setErrors] = useState({});
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedData, setLastSavedData] = useState('');
+  const [errors, setErrors] = useState({});
 
   // Update local state when data prop changes (but only if actually different)
   useEffect(() => {
@@ -95,8 +95,6 @@ const PersonalInfoPage = ({ data = {}, onUpdate, onNext, onPrev }) => {
     });
 
     // Ensure required fields are present
-    if (!cleaned.firstName) cleaned.firstName = '';
-    if (!cleaned.lastName) cleaned.lastName = '';
     if (!cleaned.email) cleaned.email = '';
 
     return cleaned;
@@ -180,6 +178,8 @@ const PersonalInfoPage = ({ data = {}, onUpdate, onNext, onPrev }) => {
   // Memoized change handler
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
+
+    // Build new form data synchronously so we can push live updates to preview
     setFormData(prev => {
       const newData = { ...prev, [name]: value };
 
@@ -190,10 +190,20 @@ const PersonalInfoPage = ({ data = {}, onUpdate, onNext, onPrev }) => {
         [name]: error
       }));
 
+      // Live update parent immediately so preview stays in sync
+      try {
+        if (onUpdate) {
+          onUpdate(newData);
+        }
+      } catch (err) {
+        console.warn('⚠️ Live update failed:', err);
+      }
+
       return newData;
     });
+
     setIsDirty(true);
-  }, [validateField]);
+  }, [validateField, onUpdate]);
 
   // Memoized blur handler for validation
   const handleBlur = useCallback((e) => {
@@ -630,36 +640,6 @@ const PersonalInfoPage = ({ data = {}, onUpdate, onNext, onPrev }) => {
             Unsaved changes...
           </div>
         )}
-
-        {/* Navigation Buttons */}
-        <div className="flex justify-between pt-6">
-          <button
-            type="button"
-            onClick={handlePrev}
-            className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-all font-medium flex items-center gap-2"
-          >
-            Back
-          </button>
-
-          <button
-            type="submit"
-            disabled={!isFormValid || isSaving}
-            className={`px-8 py-3 rounded-lg font-medium flex items-center gap-2 shadow-lg transition-all
-              ${!isFormValid || isSaving
-                ? 'bg-gray-400 cursor-not-allowed text-white opacity-50'
-                : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white hover:shadow-xl'
-              }`}
-          >
-            {isSaving ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Saving...
-              </>
-            ) : (
-              'Continue'
-            )}
-          </button>
-        </div>
       </form>
     </motion.div>
   );

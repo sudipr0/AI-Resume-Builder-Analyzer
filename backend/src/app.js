@@ -32,7 +32,17 @@ app.use(cors({
     origin: process.env.CLIENT_URL?.split(',') || ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+    allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-Requested-With',
+        'X-Application',
+        'X-API-Key',
+        'Accept',
+        'Origin',
+        'Access-Control-Request-Method',
+        'Access-Control-Request-Headers'
+    ]
 }));
 
 
@@ -67,6 +77,18 @@ app.get('/health', (req, res) => {
     });
 });
 
+// Root route - friendly API landing for quick checks
+app.get('/', (req, res) => {
+    res.status(200).json({
+        success: true,
+        message: 'API Server is running',
+        routes: {
+            health: '/health',
+            api: '/api'
+        },
+        timestamp: new Date().toISOString()
+    });
+});
 
 // ======================
 // ERROR HANDLING

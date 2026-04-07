@@ -230,13 +230,13 @@ const Preview = () => {
                 className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
               >
                 <ArrowLeft className="w-5 h-5" />
-                                Back to Dashboard
+                Back to Dashboard
               </button>
               <button
                 onClick={() => window.location.reload()}
                 className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
               >
-                                Try Again
+                Try Again
               </button>
             </div>
           </motion.div>
@@ -398,7 +398,7 @@ const Preview = () => {
                 <div>
                   <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                     <Palette className="w-4 h-4" />
-                                        Template Style
+                    Template Style
                   </h4>
                   <div className="grid grid-cols-2 gap-3">
                     {Object.entries(templates).map(([key, templateData]) => (
@@ -422,7 +422,7 @@ const Preview = () => {
                 <div>
                   <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                     <Type className="w-4 h-4" />
-                                        Font Size
+                    Font Size
                   </h4>
                   <select className="w-full px-4 py-2 border border-gray-300 rounded-lg">
                     <option>Small</option>
@@ -510,7 +510,7 @@ const Preview = () => {
                   <div className="flex items-center gap-3">
                     <ExternalLink className="w-5 h-5 text-gray-500" />
                     <a href={personalInfo.linkedin} className="text-blue-600 hover:underline">
-                                            LinkedIn Profile
+                      LinkedIn Profile
                     </a>
                   </div>
                 )}
@@ -528,7 +528,7 @@ const Preview = () => {
                   <div>
                     <h2 className="text-2xl font-bold mb-6 flex items-center gap-3" style={{ color: currentTemplate.primary }}>
                       <Briefcase className="w-6 h-6" />
-                                            Work Experience
+                      Work Experience
                     </h2>
                     <div className="space-y-6">
                       {experience.map((exp, index) => (
@@ -566,7 +566,7 @@ const Preview = () => {
                   <div>
                     <h2 className="text-2xl font-bold mb-6 flex items-center gap-3" style={{ color: currentTemplate.primary }}>
                       <GraduationCap className="w-6 h-6" />
-                                            Education
+                      Education
                     </h2>
                     <div className="space-y-6">
                       {education.map((edu, index) => (
@@ -594,7 +594,7 @@ const Preview = () => {
                   <div>
                     <h2 className="text-2xl font-bold mb-6 flex items-center gap-3" style={{ color: currentTemplate.primary }}>
                       <Code className="w-6 h-6" />
-                                            Projects
+                      Projects
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {projects.map((project, index) => (
@@ -624,7 +624,7 @@ const Preview = () => {
                   <div>
                     <h2 className="text-2xl font-bold mb-6 flex items-center gap-3" style={{ color: currentTemplate.primary }}>
                       <Code className="w-6 h-6" />
-                                            Skills
+                      Skills
                     </h2>
                     <div className="flex flex-wrap gap-2">
                       {skills.map((skill, index) => (
@@ -644,7 +644,7 @@ const Preview = () => {
                   <div>
                     <h2 className="text-2xl font-bold mb-6 flex items-center gap-3" style={{ color: currentTemplate.primary }}>
                       <Award className="w-6 h-6" />
-                                            Certifications
+                      Certifications
                     </h2>
                     <div className="space-y-4">
                       {certifications.map((cert, index) => (
@@ -670,7 +670,7 @@ const Preview = () => {
                   <div>
                     <h2 className="text-2xl font-bold mb-6 flex items-center gap-3" style={{ color: currentTemplate.primary }}>
                       <Globe className="w-6 h-6" />
-                                            Languages
+                      Languages
                     </h2>
                     <div className="space-y-3">
                       {languages.map((lang, index) => (
@@ -695,7 +695,7 @@ const Preview = () => {
                 <Shield className="w-4 h-4" />
                 <span>ATS Score: {currentResume.analysis?.atsScore || 85}%</span>
               </div>
-              <p>Resume generated with ResumeCraft AI • Last updated: {formatDate(currentResume.updatedAt)}</p>
+              <p>Resume generated with ResumeBanau • Last updated: {formatDate(currentResume.updatedAt)}</p>
             </div>
           </div>
         </motion.div>

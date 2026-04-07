@@ -17,6 +17,7 @@ import {
 
 import apiService from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import NewResumeModal from '../../components/NewResumeModal';
 
 // ==================== ADVANCED PREVIEW MODAL ====================
 const PreviewModal = ({ isOpen, onClose, resume, darkMode, onEdit }) => {
@@ -24,13 +25,25 @@ const PreviewModal = ({ isOpen, onClose, resume, darkMode, onEdit }) => {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [activeTab, setActiveTab] = useState('preview');
   const [isExporting, setIsExporting] = useState(false);
+  const [isEditLoading, setIsEditLoading] = useState(false);
   const previewRef = useRef(null);
 
   if (!isOpen || !resume) return null;
 
-  const handleEdit = () => {
-    onClose();
-    onEdit(resume);
+  const handleEdit = async () => {
+    setIsEditLoading(true);
+    try {
+      // Close modal with smooth animation
+      onClose();
+      // Brief delay to allow animation
+      await new Promise(resolve => setTimeout(resolve, 300));
+      // Navigate to builder
+      onEdit(resume);
+    } catch (error) {
+      console.error('Error navigating to editor:', error);
+      setIsEditLoading(false);
+      toast.error('Failed to open editor');
+    }
   };
 
   return (
@@ -76,17 +89,29 @@ const PreviewModal = ({ isOpen, onClose, resume, darkMode, onEdit }) => {
                 {/* Edit Button in Preview */}
                 <motion.button
                   onClick={handleEdit}
-                  whileHover={{ scale: 1.05 }}
+                  disabled={isEditLoading}
+                  whileHover={{ scale: isEditLoading ? 1 : 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-700 hover:to-cyan-700 flex items-center gap-2 shadow-lg"
+                  className={`px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-700 hover:to-cyan-700 flex items-center gap-2 shadow-lg transition-all ${isEditLoading ? 'opacity-75 cursor-not-allowed' : 'hover:shadow-xl'
+                    }`}
                 >
-                  <Edit className="w-4 h-4" />
-                  <span>Edit Resume</span>
+                  {isEditLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Opening Editor...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Edit className="w-4 h-4" />
+                      <span>Edit Resume</span>
+                    </>
+                  )}
                 </motion.button>
                 <button
                   onClick={onClose}
-                  className={`p-2 rounded-lg ${darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
-                    }`}
+                  disabled={isEditLoading}
+                  className={`p-2 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'
+                    } ${isEditLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -338,6 +363,7 @@ const Resumes = () => {
   const [resumeToDelete, setResumeToDelete] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isNewResumeModalOpen, setIsNewResumeModalOpen] = useState(false);
 
   // UI States
   const [darkMode, setDarkMode] = useState(false);
@@ -422,17 +448,30 @@ const Resumes = () => {
 
   // ============ ✅ SMART EDIT FUNCTION ============
   const handleEditResume = useCallback((resume) => {
-    console.log('🚀 Opening builder for resume:', resume._id);
+    try {
+      console.log('🚀 Opening builder for resume:', resume._id);
 
-    // Navigate to builder with the resume ID
-    // The builder will automatically load the resume data
-    navigate(`/builder/edit/${resume._id}`, {
-      state: {
-        fromResumes: true,
-        resumeData: resume, // Pass data for instant display
-        timestamp: Date.now()
-      }
-    });
+      // Show loading toast
+      toast.loading('Opening editor...', { id: 'edit-resume' });
+
+      // Navigate to builder with the resume ID
+      // The builder will automatically load the resume data
+      navigate(`/builder/edit/${resume._id}`, {
+        state: {
+          fromResumes: true,
+          resumeData: resume, // Pass data for instant display
+          timestamp: Date.now()
+        }
+      });
+
+      // Dismiss loading toast after navigation intent
+      setTimeout(() => {
+        toast.dismiss('edit-resume');
+      }, 1000);
+    } catch (error) {
+      console.error('❌ Error opening editor:', error);
+      toast.error('Failed to open editor', { id: 'edit-resume' });
+    }
   }, [navigate]);
 
   // ============ PREVIEW ============
@@ -442,32 +481,43 @@ const Resumes = () => {
   }, []);
 
   // ============ CREATE NEW ============
-  const handleCreateNew = useCallback(async () => {
+  const handleCreateNew = useCallback(() => {
     if (!isAuthenticated) {
       navigate('/login');
       return;
     }
 
-    try {
-      toast.loading('Creating new resume...', { id: 'create' });
+    setIsNewResumeModalOpen(true);
+  }, [isAuthenticated, navigate]);
 
-      const newResume = await apiService.resume.createResume({
-        title: `${user?.name?.split(' ')[0] || 'New'}'s Resume`,
-        personalInfo: {
-          firstName: user?.name?.split(' ')[0] || '',
-          lastName: user?.name?.split(' ').slice(1).join(' ') || '',
-          email: user?.email || ''
+  // ============ HANDLE NEW RESUME MODE SELECTION ============
+  const handleNewResumeModeSelection = useCallback(async (modeId, data) => {
+    try {
+      // Show loading indication
+      toast.loading('Preparing resume builder...', { id: 'new-resume-mode' });
+
+      // Navigate to builder/new with selected mode and data
+      // Note: File data is temporarily stored in sessionStorage (temp_resume_file)
+      navigate('/builder/new', {
+        state: {
+          mode: modeId,
+          jobDescription: data.jobDescription,
+          uploadedFile: data.uploadedFile, // Only metadata, actual file in sessionStorage
+          hasFile: data.hasFile
         }
       });
 
-      if (newResume?._id) {
-        toast.success('Resume created!', { id: 'create' });
-        handleEditResume(newResume); // Use the same edit function
-      }
+      // Dismiss toast after navigation completes
+      setTimeout(() => {
+        toast.dismiss('new-resume-mode');
+      }, 500);
     } catch (error) {
-      toast.error('Failed to create resume', { id: 'create' });
+      console.error('❌ Error in mode selection:', error);
+      toast.error('Failed to start builder', { id: 'new-resume-mode' });
+      sessionStorage.removeItem('temp_resume_file');
+      throw new Error(error.message || 'Failed to start builder');
     }
-  }, [isAuthenticated, user, navigate, handleEditResume]);
+  }, [navigate]);
 
   // ============ DUPLICATE ============
   const handleDuplicateResume = useCallback(async (resumeId) => {
@@ -812,6 +862,13 @@ const Resumes = () => {
           </div>
         </div>
       )}
+
+      {/* New Resume Modal */}
+      <NewResumeModal
+        isOpen={isNewResumeModalOpen}
+        onClose={() => setIsNewResumeModalOpen(false)}
+        onSelectMode={handleNewResumeModeSelection}
+      />
     </div>
   );
 };

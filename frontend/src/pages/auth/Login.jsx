@@ -31,7 +31,7 @@ const Login = () => {
   const [serverStatus, setServerStatus] = useState('checking');
   const [loginError, setLoginError] = useState(null);
 
-  const { login: contextLogin, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { login: contextLogin, loginWithGoogle, isAuthenticated, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -209,28 +209,28 @@ const Login = () => {
     <GoogleOAuthProvider clientId={googleClientId}>
       <div className="min-h-screen relative overflow-hidden bg-slate-50 flex flex-col">
         {/* Animated Background Blobs */}
-        <motion.div 
-            animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
-            transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
-            className="absolute -top-40 -left-40 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-50 pointer-events-none"
+        <motion.div
+          animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 0] }}
+          transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+          className="absolute -top-40 -left-40 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-50 pointer-events-none"
         />
-        <motion.div 
-            animate={{ scale: [1, 1.5, 1], rotate: [0, -90, 0] }}
-            transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
-            className="absolute top-40 -right-20 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-50 pointer-events-none"
+        <motion.div
+          animate={{ scale: [1, 1.5, 1], rotate: [0, -90, 0] }}
+          transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
+          className="absolute top-40 -right-20 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-50 pointer-events-none"
         />
-        <motion.div 
-            animate={{ scale: [1, 1.1, 1], x: [0, 100, 0], y: [0, 50, 0] }}
-            transition={{ duration: 15, repeat: Infinity, ease: 'linear' }}
-            className="absolute -bottom-40 left-1/2 w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-50 pointer-events-none"
+        <motion.div
+          animate={{ scale: [1, 1.1, 1], x: [0, 100, 0], y: [0, 50, 0] }}
+          transition={{ duration: 15, repeat: Infinity, ease: 'linear' }}
+          className="absolute -bottom-40 left-1/2 w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-50 pointer-events-none"
         />
 
 
         {/* Server Status Banner */}
         {serverStatus !== 'checking' && (
           <div className={`fixed top-16 left-0 right-0 z-40 py-2 px-4 text-center text-sm font-medium ${serverStatus === 'online'
-              ? 'bg-green-50 text-green-700 border-b border-green-200'
-              : 'bg-yellow-50 text-yellow-700 border-b border-yellow-200'
+            ? 'bg-green-50 text-green-700 border-b border-green-200'
+            : 'bg-yellow-50 text-yellow-700 border-b border-yellow-200'
             }`}>
             <div className="flex items-center justify-center gap-2">
               {serverStatus === 'online' ? (
@@ -277,8 +277,8 @@ const Login = () => {
                   <motion.div
                     key={`${feature.text}-${index}`}
                     className={`p-4 lg:p-5 rounded-xl border transition-all duration-300 hover:shadow-lg ${serverStatus === 'online'
-                        ? 'bg-white/50 backdrop-blur-sm border-gray-200/50 hover:border-blue-200'
-                        : 'bg-gray-100/50 border-gray-300/50 hover:border-yellow-300'
+                      ? 'bg-white/50 backdrop-blur-sm border-gray-200/50 hover:border-blue-200'
+                      : 'bg-gray-100/50 border-gray-300/50 hover:border-yellow-300'
                       }`}
                     variants={itemVariants}
                     whileHover={{ y: -5, scale: 1.02 }}
@@ -318,8 +318,8 @@ const Login = () => {
                 <button
                   onClick={() => setActiveTab('login')}
                   className={`flex-1 py-2.5 px-4 rounded-lg font-medium text-sm transition-all duration-300 ${activeTab === 'login'
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
                     }`}
                 >
                   {serverStatus === 'online' ? 'Sign In' : 'Offline Login'}
@@ -327,8 +327,8 @@ const Login = () => {
                 <button
                   onClick={() => setActiveTab('demo')}
                   className={`flex-1 py-2.5 px-4 rounded-lg font-medium text-sm transition-all duration-300 ${activeTab === 'demo'
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-white text-blue-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
                     }`}
                 >
                   Demo
@@ -361,9 +361,9 @@ const Login = () => {
                         <div className="mb-4 lg:mb-6">
                           <GoogleOAuthButton
                             text="Continue with Google"
-                            type="login"
                             variant="outline"
                             fullWidth={true}
+                            onClick={loginWithGoogle}
                           />
                         </div>
 
@@ -467,8 +467,8 @@ const Login = () => {
                         type="submit"
                         disabled={isLoading}
                         className={`w-full text-white py-3 lg:py-4 px-4 rounded-xl font-semibold text-sm lg:text-base shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-95 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed ${serverStatus === 'online'
-                            ? 'bg-gradient-to-r from-blue-600 to-purple-600'
-                            : 'bg-gradient-to-r from-gray-600 to-gray-700'
+                          ? 'bg-gradient-to-r from-blue-600 to-purple-600'
+                          : 'bg-gradient-to-r from-gray-600 to-gray-700'
                           }`}
                         variants={itemVariants}
                         whileHover={!isLoading ? { scale: 1.02 } : {}}

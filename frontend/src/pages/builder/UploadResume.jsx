@@ -17,13 +17,14 @@ import {
 const UploadResume = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { createResume, loading: resumeLoading } = useResume();
+  const { createResume, loading: resumeLoading, updateCurrentResumeData } = useResume();
 
   const fileInputRef = useRef(null);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [extractedData, setExtractedData] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [showPreview, setShowPreview] = useState(false);
 
   const handleFileSelect = (event) => {
@@ -35,7 +36,8 @@ const UploadResume = () => {
       'application/pdf',
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'text/plain'
+      'image/jpeg',
+      'image/png'
     ];
 
     if (!validTypes.includes(file.type)) {
@@ -62,25 +64,50 @@ const UploadResume = () => {
 
     setIsUploading(true);
     setIsProcessing(true);
+    setUploadProgress(0);
 
     try {
       const formData = new FormData();
       formData.append('resumeFile', uploadedFile);
 
       const response = await api.post('/extract/resume', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadProgress(percent);
+          }
+        }
       });
 
       if (!response.data.success) {
-          throw new Error(response.data.message || 'Failed to extract resume data');
+        throw new Error(response.data.message || 'Failed to extract resume data');
       }
 
       setExtractedData(response.data.extractedData);
+
+      // Persist upload metadata so the resume can be edited later without re-upload
+      try {
+        if (response.data.uploadId || response.data.fileUrl) {
+          updateCurrentResumeData && updateCurrentResumeData({
+            uploadId: response.data.uploadId || null,
+            fileUrl: response.data.fileUrl || null,
+            uploadedFile: { name: uploadedFile.name, size: uploadedFile.size, type: uploadedFile.type }
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to persist upload metadata:', e);
+      }
+
       toast.success('Resume processed successfully!');
       setShowPreview(true);
     } catch (error) {
       console.error('Upload error:', error);
-      toast.error(error.message || 'Failed to process resume');
+      const serverMessage = error?.response?.data?.message || error?.response?.data?.error || null;
+      if (serverMessage) {
+        console.warn('Server response error:', error.response.data);
+      }
+      toast.error(serverMessage || error.message || 'Failed to process resume');
+      setUploadProgress(0);
     } finally {
       setIsUploading(false);
       setIsProcessing(false);
@@ -195,7 +222,7 @@ const UploadResume = () => {
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileSelect}
-                accept=".pdf,.doc,.docx,.txt"
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
                 className="hidden"
               />
 
@@ -272,8 +299,12 @@ const UploadResume = () => {
                     <h4 className="font-semibold text-gray-900 mb-1">Processing your resume...</h4>
                     <p className="text-gray-600 text-sm">ResumeAI is extracting information from your file</p>
                     <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                      <div className="bg-gradient-to-r from-blue-500 to-cyan-500 h-2 rounded-full animate-pulse w-3/4"></div>
+                      <div
+                        className="bg-gradient-to-r from-blue-500 to-cyan-500 h-2 rounded-full"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
                     </div>
+                    <div className="text-sm text-gray-600 mt-2">{uploadProgress}%</div>
                   </div>
                 </div>
               </motion.div>

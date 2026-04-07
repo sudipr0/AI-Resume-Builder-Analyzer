@@ -13,7 +13,8 @@ import {
     getStats,
     enhanceSection,
     generateGhostText,
-    magicResume
+    magicResume,
+    generateTemplateBasedResume
 } from './ai.controller.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { aiLimiter } from '../middleware/rateLimiter.js';
@@ -51,6 +52,7 @@ router.post('/suggest/skills', suggestSkills);
 router.post('/enhance-section', enhanceSection); // Match frontend
 router.post('/generate-ghost-text', generateGhostText); // Match frontend
 router.post('/magic-resume', magicResume); // Match frontend
+router.post('/generate-template-resume', generateTemplateBasedResume); // New endpoint
 
 // ============ UTILITY ============
 router.get('/stats', getStats);

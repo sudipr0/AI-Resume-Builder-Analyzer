@@ -197,7 +197,7 @@ export const generateGhostText = async (req, res) => {
     }
 };
 
-// ==================== MAGIC RESUME ====================
+// ============ MAGIC RESUME ============
 export const magicResume = async (req, res) => {
     try {
         const { jobDescription, targetRole, userData } = req.body;
@@ -206,6 +206,20 @@ export const magicResume = async (req, res) => {
             `Job Description:\n${jobDescription}\nTarget Role: ${targetRole}\nUser Data: ${JSON.stringify(userData)}\n\nReturn a full structured resume in JSON format.`,
             { temperature: 0.7, maxTokens: 4000 }
         );
+        res.json({ success: true, data: result });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+// ============ GENERATE TEMPLATE BASED RESUME ============
+export const generateTemplateBasedResume = async (req, res) => {
+    try {
+        const { templateId, userData, options = {} } = req.body;
+        if (!templateId) return res.status(400).json({ success: false, error: 'Template ID required' });
+        if (!userData) return res.status(400).json({ success: false, error: 'User data required' });
+
+        const result = await aiService.generateTemplateBasedResume(templateId, userData, options);
         res.json({ success: true, data: result });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });

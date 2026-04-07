@@ -338,26 +338,28 @@ export const AuthProvider = ({ children }) => {
       setIsLoading(true);
       setError(null);
 
-      const config = await apiService.auth.getOAuthConfig();
-
-      if (!config.googleOAuth.enabled) {
-        toast.error('Google login is not configured');
+      const enabled = import.meta.env.VITE_ENABLE_GOOGLE_AUTH === 'true';
+      if (!enabled) {
+        toast.error('Google login is not enabled');
+        setIsLoading(false);
         return { success: false };
       }
 
       const state = Math.random().toString(36).substring(2, 15);
       localStorage.setItem(STORAGE_KEYS.GOOGLE_STATE, state);
 
-      const authUrl = `${apiService.baseURL}/api/auth/google?state=${state}`;
+      const redirectUri = `${window.location.origin}/auth/callback`;
+      const authUrl = `${apiService.baseURL}/api/auth/google?state=${state}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+
+      console.log('🌐 Redirecting to Google OAuth URL:', authUrl);
       window.location.href = authUrl;
 
       return { success: true };
-
     } catch (error) {
       console.error('❌ [AuthContext] Google OAuth error:', error);
-      toast.error('Google login failed');
+      toast.error('Google login failed. Please try again.');
       setIsLoading(false);
-      return { success: false };
+      return { success: false, error: error?.message || 'Google login failed' };
     }
   }, []);
 
@@ -374,11 +376,11 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem(STORAGE_KEYS.GOOGLE_STATE);
 
       if (error) {
-        throw new Error(`OAuth error: ${decodeURIComponent(error)}`);
+        throw new Error(decodeURIComponent(error));
       }
 
       if (state && storedState && state !== storedState) {
-        throw new Error('Invalid state parameter');
+        throw new Error('Invalid Google OAuth state parameter');
       }
 
       if (token && userData) {
@@ -389,19 +391,17 @@ export const AuthProvider = ({ children }) => {
 
         setUser(user);
         setToken(token);
-
         window.history.replaceState({}, document.title, window.location.pathname);
-        toast.success('Successfully logged in with Google!');
 
+        toast.success('Successfully logged in with Google!');
         return { success: true, user, token };
       }
 
-      throw new Error('No authentication data received');
-
+      throw new Error('No authentication data received from Google');
     } catch (error) {
       console.error('❌ [AuthContext] OAuth callback error:', error);
       toast.error(`Authentication failed: ${error.message}`);
-      return { success: false, error: error.message };
+      return { success: false, error: error.message || 'OAuth callback failed' };
     }
   }, []);
 

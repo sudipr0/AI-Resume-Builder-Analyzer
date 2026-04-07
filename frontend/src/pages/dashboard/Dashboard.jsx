@@ -2,12 +2,12 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-    Plus, 
-    Sparkle, 
-    Search, 
-    Grid, 
-    List, 
+import {
+    Plus,
+    Sparkle,
+    Search,
+    Grid,
+    List,
     Filter,
     RefreshCw,
     LayoutDashboard,
@@ -28,24 +28,29 @@ const Dashboard = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
 
-    const { 
-        data: stats, 
-        isLoading: statsLoading, 
+    const {
+        data: stats,
+        isLoading: statsLoading,
         isError: statsError,
-        refetch: refetchStats 
+        refetch: refetchStats
     } = useDashboardStats(user?._id || user?.id);
 
-    const { 
-        data: resumes, 
-        isLoading: resumesLoading, 
+    const {
+        data: resumes,
+        isLoading: resumesLoading,
         isError: resumesError,
-        refetch: refetchResumes 
+        refetch: refetchResumes
     } = useUserResumes(user?._id || user?.id);
 
     const filteredResumes = useMemo(() => {
         if (!resumes) return [];
-        return resumes.filter(resume => {
-            const matchesSearch = resume.title.toLowerCase().includes(searchQuery.toLowerCase());
+
+        // Ensure we only work with valid resume objects that have an _id
+        const valid = resumes.filter(r => r && (r._id || r.id));
+
+        return valid.filter(resume => {
+            const title = (resume.title || '').toString();
+            const matchesSearch = title.toLowerCase().includes((searchQuery || '').toLowerCase());
             const matchesStatus = statusFilter === 'all' || resume.status === statusFilter;
             return matchesSearch && matchesStatus;
         });
@@ -69,7 +74,7 @@ const Dashboard = () => {
     return (
         <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
             <Navbar darkMode={darkMode} setDarkMode={setDarkMode} />
-            
+
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Welcome Header */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
@@ -81,7 +86,7 @@ const Dashboard = () => {
                             Your professional journey continues here.
                         </p>
                     </div>
-                    
+
                     <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
@@ -97,9 +102,8 @@ const Dashboard = () => {
                 {!statsError && stats && <StatsGrid stats={stats} darkMode={darkMode} />}
 
                 {/* Controls Bar */}
-                <div className={`p-4 rounded-2xl mb-8 border flex flex-col md:flex-row items-center justify-between gap-4 ${
-                    darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100 shadow-sm'
-                }`}>
+                <div className={`p-4 rounded-2xl mb-8 border flex flex-col md:flex-row items-center justify-between gap-4 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100 shadow-sm'
+                    }`}>
                     <div className="relative w-full md:w-96">
                         <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
                         <input
@@ -107,21 +111,20 @@ const Dashboard = () => {
                             placeholder="Search your resumes..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className={`w-full pl-10 pr-4 py-2.5 rounded-xl border focus:ring-2 focus:ring-blue-500 transition-all outline-none ${
-                                darkMode ? 'bg-gray-900 border-gray-700 text-white' : 'bg-gray-50 border-gray-100'
-                            }`}
+                            className={`w-full pl-10 pr-4 py-2.5 rounded-xl border focus:ring-2 focus:ring-blue-500 transition-all outline-none ${darkMode ? 'bg-gray-900 border-gray-700 text-white' : 'bg-gray-50 border-gray-100'
+                                }`}
                         />
                     </div>
 
                     <div className="flex items-center gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
                         <div className="flex bg-gray-100 dark:bg-gray-900 p-1 rounded-xl">
-                            <button 
+                            <button
                                 onClick={() => setViewMode('grid')}
                                 className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white dark:bg-gray-800 shadow-sm text-blue-500' : 'text-gray-500'}`}
                             >
                                 <Grid className="w-5 h-5" />
                             </button>
-                            <button 
+                            <button
                                 onClick={() => setViewMode('list')}
                                 className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white dark:bg-gray-800 shadow-sm text-blue-500' : 'text-gray-500'}`}
                             >
@@ -129,23 +132,21 @@ const Dashboard = () => {
                             </button>
                         </div>
 
-                        <select 
+                        <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
-                            className={`px-4 py-2.5 rounded-xl border outline-none cursor-pointer ${
-                                darkMode ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-100'
-                            }`}
+                            className={`px-4 py-2.5 rounded-xl border outline-none cursor-pointer ${darkMode ? 'bg-gray-900 border-gray-700' : 'bg-gray-50 border-gray-100'
+                                }`}
                         >
                             <option value="all">All Status</option>
                             <option value="draft">Drafts</option>
                             <option value="completed">Completed</option>
                         </select>
 
-                        <button 
+                        <button
                             onClick={handleRefresh}
-                            className={`p-2.5 rounded-xl border hover:bg-gray-100 dark:hover:bg-gray-700 transition-all ${
-                                darkMode ? 'border-gray-700' : 'border-gray-100'
-                            }`}
+                            className={`p-2.5 rounded-xl border hover:bg-gray-100 dark:hover:bg-gray-700 transition-all ${darkMode ? 'border-gray-700' : 'border-gray-100'
+                                }`}
                         >
                             <RefreshCw className="w-5 h-5" />
                         </button>
@@ -167,7 +168,7 @@ const Dashboard = () => {
                         </div>
                         <h2 className="text-3xl font-bold mb-3 text-gray-900 dark:text-white">Create your first resume</h2>
                         <p className="text-gray-500 mb-8 max-w-sm mx-auto text-lg">Use our AI-powered builder to craft a professional, ATS-optimized resume.</p>
-                        <motion.button 
+                        <motion.button
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
                             onClick={handleCreateResume}
@@ -184,7 +185,7 @@ const Dashboard = () => {
                         <p className="text-gray-500">Try adjusting your search or filters.</p>
                     </div>
                 ) : (
-                    <div className={viewMode === 'grid' 
+                    <div className={viewMode === 'grid'
                         ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
                         : "flex flex-col gap-4"
                     }>
@@ -197,15 +198,13 @@ const Dashboard = () => {
                                     whileHover={{ scale: 1.03, y: -5 }}
                                     whileTap={{ scale: 0.98 }}
                                     onClick={handleCreateResume}
-                                    className={`group cursor-pointer rounded-2xl border-2 border-dashed flex flex-col items-center justify-center min-h-[300px] p-6 transition-all duration-500 ${
-                                        darkMode 
-                                        ? 'border-gray-700 hover:border-blue-500 hover:bg-gray-800/80' 
-                                        : 'border-blue-200 hover:border-blue-400 hover:bg-gradient-to-b from-blue-50 to-white hover:shadow-xl hover:shadow-blue-500/10 bg-white'
-                                    }`}
+                                    className={`group cursor-pointer rounded-2xl border-2 border-dashed flex flex-col items-center justify-center min-h-[300px] p-6 transition-all duration-500 ${darkMode
+                                            ? 'border-gray-700 hover:border-blue-500 hover:bg-gray-800/80'
+                                            : 'border-blue-200 hover:border-blue-400 hover:bg-gradient-to-b from-blue-50 to-white hover:shadow-xl hover:shadow-blue-500/10 bg-white'
+                                        }`}
                                 >
-                                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-90 ${
-                                        darkMode ? 'bg-gray-800 text-blue-400' : 'bg-blue-50 text-blue-600'
-                                    }`}>
+                                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-90 ${darkMode ? 'bg-gray-800 text-blue-400' : 'bg-blue-50 text-blue-600'
+                                        }`}>
                                         <Plus className="w-8 h-8" />
                                     </div>
                                     <h3 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">Create New Resume</h3>
@@ -220,8 +219,8 @@ const Dashboard = () => {
                                     exit={{ opacity: 0, scale: 0.9 }}
                                     transition={{ delay: index * 0.05 }}
                                 >
-                                    <ResumeCard 
-                                        resume={resume} 
+                                    <ResumeCard
+                                        resume={resume}
                                         darkMode={darkMode}
                                         view={viewMode}
                                     />

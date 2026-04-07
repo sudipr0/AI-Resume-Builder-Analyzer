@@ -726,10 +726,22 @@ const AISemanticFeedback = ({ summary, onClose }) => {
 };
 
 // ==================== JOB DESCRIPTION BOX ====================
-const JobDescriptionBox = ({ jobDescription, setJobDescription, onAnalyze, isAnalyzing, aiStatus }) => {
+const JobDescriptionBox = ({
+  jobDescription,
+  setJobDescription,
+  onAnalyze,
+  isAnalyzing,
+  aiStatus,
+  suggestedKeywords = [],
+  selectedKeywords = [],
+  onToggleKeyword = () => { },
+  onAddKeyword = () => { },
+  onSaveKeywords = () => { }
+}) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [charCount, setCharCount] = useState(0);
+  const [localKeyword, setLocalKeyword] = useState('');
   const textareaRef = useRef(null);
 
   useEffect(() => {
@@ -844,6 +856,55 @@ const JobDescriptionBox = ({ jobDescription, setJobDescription, onAnalyze, isAna
             className="overflow-hidden"
           >
             <div className="p-5 pt-0 border-t border-gray-100">
+
+              {/* Keywords UI */}
+              {suggestedKeywords && suggestedKeywords.length > 0 && (
+                <div className="mt-4 p-3 bg-white rounded-xl border border-gray-200">
+                  <h4 className="text-sm font-semibold text-gray-800 mb-2">Suggested Keywords</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestedKeywords.map((kw, i) => {
+                      const active = selectedKeywords.includes(kw);
+                      return (
+                        <button
+                          key={i}
+                          onClick={(e) => { e.stopPropagation(); onToggleKeyword(kw); }}
+                          className={`${active ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border border-gray-200'} px-3 py-1 rounded-full text-sm`}
+                        >
+                          {kw}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <input
+                      value={localKeyword}
+                      onChange={(e) => setLocalKeyword(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          onAddKeyword(localKeyword);
+                          setLocalKeyword('');
+                        }
+                      }}
+                      placeholder="Add keyword and press Enter"
+                      className="flex-1 p-2 border rounded-lg text-sm"
+                    />
+                    <button
+                      onClick={() => { onAddKeyword(localKeyword); setLocalKeyword(''); }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm"
+                    >
+                      Add
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onSaveKeywords(); }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="relative">
                 <textarea
                   ref={textareaRef}
@@ -934,9 +995,10 @@ const SummaryPage = ({ data = {}, onUpdate, onNext, onPrev }) => {
     globalJobDescription,
     setGlobalJobDescription,
     checkAIStatus,
+    globalKeywords
   } = useAI();
 
-  const { currentResume } = useResume();
+  const { currentResume, updateCurrentResumeData } = useResume();
 
   // ============ STATE ============
   const [summary, setSummary] = useState(data?.summary || '');
@@ -952,6 +1014,11 @@ const SummaryPage = ({ data = {}, onUpdate, onNext, onPrev }) => {
   const [showVariants, setShowVariants] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedSummary, setLastSavedSummary] = useState('');
+
+  // Job Description & Keywords
+  const [suggestedKeywords, setSuggestedKeywords] = useState([]);
+  const [selectedKeywords, setSelectedKeywords] = useState([]);
+  const [newKeyword, setNewKeyword] = useState('');
 
   // AI Feature States
   const [showVoiceInput, setShowVoiceInput] = useState(false);
@@ -1013,12 +1080,16 @@ const SummaryPage = ({ data = {}, onUpdate, onNext, onPrev }) => {
   // ============ SAVE TO PARENT ============
   const saveToParent = useCallback((newSummary) => {
     if (onUpdate && newSummary !== lastSavedSummary) {
-      console.log('📤 Sending to parent:', { summary: newSummary });
+      console.log('📤 Sending to parent (raw):', newSummary);
       setIsSaving(true);
       setLastSavedSummary(newSummary);
 
-      // Send as object with summary property
-      onUpdate({ summary: newSummary });
+      // Send raw value (Builder will map it to the model key)
+      try {
+        onUpdate(newSummary);
+      } catch (err) {
+        console.warn('⚠️ onUpdate failed in SummaryPage:', err);
+      }
 
       // Hide saving indicator after a delay
       setTimeout(() => setIsSaving(false), 300);
@@ -1054,6 +1125,12 @@ const SummaryPage = ({ data = {}, onUpdate, onNext, onPrev }) => {
     const newValue = e.target.value;
     console.log('📝 Typing:', newValue);
     setSummary(newValue);
+    // Live-update parent so preview reflects typing instantly
+    try {
+      if (onUpdate) onUpdate(newValue);
+    } catch (err) {
+      console.warn('⚠️ Live update to parent failed:', err);
+    }
   }, []);
 
   const handleSave = useCallback(async () => {
@@ -1157,8 +1234,20 @@ const SummaryPage = ({ data = {}, onUpdate, onNext, onPrev }) => {
         case 'analyze-job':
           result = await extractKeywords(jobDescription);
           if (result?.keywords) {
-            setGlobalJobDescription(jobDescription);
-            toast.success(`${result.keywords.length} keywords extracted`);
+            const kws = result.keywords || [];
+            setSuggestedKeywords(kws);
+            const initialSelected = kws.slice(0, 8);
+            setSelectedKeywords(initialSelected);
+            // persist job description + selected keywords to resume model
+            try {
+              updateCurrentResumeData?.({ jobDescription: jobDescription || '', summaryKeywords: initialSelected });
+            } catch (err) {
+              console.warn('Failed to persist keywords:', err);
+            }
+            setGlobalJobDescription?.(jobDescription || '');
+            toast.success(`${kws.length} keywords extracted`);
+          } else {
+            toast.error('No keywords found');
           }
           break;
 
@@ -1170,7 +1259,48 @@ const SummaryPage = ({ data = {}, onUpdate, onNext, onPrev }) => {
       toast.error(`Failed to ${action}`);
       toast.dismiss();
     }
-  }, [summary, currentResume, data, generateSummaryVariants, jobDescription, extractKeywords, setGlobalJobDescription, saveToParent]);
+  }, [summary, currentResume, data, generateSummaryVariants, jobDescription, extractKeywords, setGlobalJobDescription, saveToParent, updateCurrentResumeData]);
+
+  // Keyword helpers: toggle, add, save
+  const toggleKeyword = useCallback((kw) => {
+    setSelectedKeywords(prev => {
+      const exists = prev.includes(kw);
+      const next = exists ? prev.filter(k => k !== kw) : [...prev, kw];
+      try {
+        updateCurrentResumeData?.({ summaryKeywords: next });
+      } catch (err) {
+        console.warn('Failed to persist keyword toggle:', err);
+      }
+      return next;
+    });
+  }, [updateCurrentResumeData]);
+
+  const addKeyword = useCallback((kw) => {
+    const clean = String(kw || '').trim();
+    if (!clean) return;
+    setSuggestedKeywords(prev => (prev.includes(clean) ? prev : [clean, ...prev]));
+    setSelectedKeywords(prev => {
+      const next = prev.includes(clean) ? prev : [clean, ...prev];
+      try {
+        updateCurrentResumeData?.({ summaryKeywords: next });
+      } catch (err) {
+        console.warn('Failed to persist added keyword:', err);
+      }
+      return next;
+    });
+    setNewKeyword('');
+    toast.success('Keyword added');
+  }, [updateCurrentResumeData]);
+
+  const saveKeywords = useCallback(() => {
+    try {
+      updateCurrentResumeData?.({ summaryKeywords: selectedKeywords });
+      toast.success('Keywords saved');
+    } catch (err) {
+      console.warn('Failed to save keywords:', err);
+      toast.error('Failed to save keywords');
+    }
+  }, [selectedKeywords, updateCurrentResumeData]);
 
   const handleVoiceTranscribe = useCallback(async (transcript) => {
     setShowVoiceInput(false);
@@ -1268,16 +1398,16 @@ const SummaryPage = ({ data = {}, onUpdate, onNext, onPrev }) => {
   }, [summary, saveToParent, onPrev]);
 
   return (
-    <div className="w-full max-w-5xl mx-auto">
+    <div className="w-full max-w-5xl mx-auto text-black">
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         {/* Header */}
         <div className="px-6 py-6 border-b border-gray-100">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-1">
+              <h2 className="text-xl font-semibold text-black mb-1">
                 Professional Summary
               </h2>
-              <p className="text-gray-600 text-sm">
+              <p className="text-black text-sm">
                 Write a compelling summary of your professional background
               </p>
             </div>
@@ -1305,7 +1435,7 @@ const SummaryPage = ({ data = {}, onUpdate, onNext, onPrev }) => {
               <div className="flex items-center gap-4">
                 <SparklesIcon className="w-8 h-8 text-purple-600" />
                 <div className="flex-1">
-                  <p className="text-sm text-gray-700">
+                  <p className="text-sm text-black">
                     Let AI write your summary! Click the magic button below to generate 3 tailored versions from your profile.
                   </p>
                 </div>
@@ -1332,6 +1462,11 @@ const SummaryPage = ({ data = {}, onUpdate, onNext, onPrev }) => {
                 onAnalyze={() => handleAIAction('analyze-job')}
                 isAnalyzing={isAnalyzing}
                 aiStatus={aiStatus}
+                suggestedKeywords={suggestedKeywords}
+                selectedKeywords={selectedKeywords}
+                onToggleKeyword={toggleKeyword}
+                onAddKeyword={addKeyword}
+                onSaveKeywords={saveKeywords}
               />
 
               {/* Quick Stats */}
@@ -1348,7 +1483,7 @@ const SummaryPage = ({ data = {}, onUpdate, onNext, onPrev }) => {
                   <div className="space-y-3">
                     <div>
                       <div className="flex justify-between text-sm mb-1">
-                        <span className="text-gray-600">ATS Score</span>
+                        <span className="text-black">ATS Score</span>
                         <span className={`font-bold ${atsScore >= 80 ? 'text-green-600' : atsScore >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
                           {atsScore}%
                         </span>
@@ -1364,10 +1499,10 @@ const SummaryPage = ({ data = {}, onUpdate, onNext, onPrev }) => {
                     </div>
                     <div>
                       <div className="flex justify-between text-sm mb-1">
-                        <span className="text-gray-600">Words</span>
+                        <span className="text-black">Words</span>
                         <span className="font-bold">{wordCount}</span>
                       </div>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-black">
                         {wordCount < 50 ? 'Too short' : wordCount > 200 ? 'Too long' : 'Good length'}
                       </p>
                     </div>
@@ -1381,7 +1516,7 @@ const SummaryPage = ({ data = {}, onUpdate, onNext, onPrev }) => {
               {/* Editor */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-sm font-medium text-black">
                     Your Summary
                   </label>
                   <div className="flex items-center gap-2">
@@ -1424,12 +1559,12 @@ const SummaryPage = ({ data = {}, onUpdate, onNext, onPrev }) => {
                   onChange={handleChange}
                   placeholder="Write your professional summary here, or let AI generate one for you..."
                   rows={8}
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 hover:border-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-gray-900 transition-all duration-200 resize-none"
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 hover:border-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-black transition-all duration-200 resize-none"
                 />
 
                 {/* Character count and unsaved indicator */}
                 <div className="mt-2 flex justify-between items-center">
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-black">
                     {summary.length} characters · {wordCount} words
                   </span>
                   {summary !== lastSavedSummary && (
@@ -1483,47 +1618,6 @@ const SummaryPage = ({ data = {}, onUpdate, onNext, onPrev }) => {
                 </motion.div>
               )}
             </div>
-          </div>
-
-          {/* Navigation Buttons */}
-          <div className="mt-8 flex justify-between items-center pt-6 border-t border-gray-200">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handlePrev}
-              className="px-6 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all font-medium flex items-center gap-2"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Previous
-            </motion.button>
-
-            <div className="text-sm text-gray-500">
-              {summary ? 'Summary ready' : 'No summary yet'}
-            </div>
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleNext}
-              disabled={isSaving}
-              className={`px-8 py-2.5 rounded-lg font-medium flex items-center gap-2 shadow-md transition-all
-                ${isSaving
-                  ? 'bg-gray-400 cursor-not-allowed text-white'
-                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white'
-                }`}
-            >
-              {isSaving ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  Next
-                  <ChevronRight className="w-4 h-4" />
-                </>
-              )}
-            </motion.button>
           </div>
         </div>
       </div>

@@ -906,33 +906,6 @@ const CertificationsPage = ({ data = {}, onUpdate, onNext, onPrev }) => {
             Add Another Certification
           </motion.button>
         )}
-
-        {/* Navigation */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
-          className="flex justify-between items-center mt-8 pt-6 border-t border-gray-200"
-        >
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={onPrev}
-            className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all flex items-center gap-2 text-gray-700"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            Previous
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={onNext}
-            className="px-8 py-3 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-lg hover:opacity-90 transition-all flex items-center gap-2 shadow-lg"
-          >
-            Next: Languages
-            <ArrowRight className="w-4 h-4" />
-          </motion.button>
-        </motion.div>
       </div>
 
       {/* AI Enhance Modal */}

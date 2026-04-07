@@ -511,27 +511,6 @@ const ExperiencePage = ({ data = [], onUpdate, onNext, onPrev }) => {
           </AnimatePresence>
         </div>
       )}
-
-      {/* Navigation Buttons */}
-      <div className="flex justify-between items-center pt-6 border-t">
-        <button
-          onClick={onPrev}
-          className="px-6 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition flex items-center gap-2"
-        >
-          Previous
-        </button>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500">
-            {experiences.length} {experiences.length === 1 ? 'experience' : 'experiences'} added
-          </span>
-        </div>
-        <button
-          onClick={onNext}
-          className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
-        >
-          Next
-        </button>
-      </div>
     </div>
   );
 };

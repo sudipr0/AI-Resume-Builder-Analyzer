@@ -71,6 +71,38 @@ A modern, AI-powered resume building and analysis platform built with **React**,
 ### AI & ML
 - **OpenAI API** - GPT models for intelligent suggestions
 - **Natural Language Processing** - Text analysis and optimization
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 - **Machine Learning** - ML-based resume scoring
 
 ### DevOps & Deployment

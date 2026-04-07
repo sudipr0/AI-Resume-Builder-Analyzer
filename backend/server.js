@@ -15,6 +15,17 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/resume
 // Create HTTP server
 const server = http.createServer(app);
 
+// Handle server errors early (e.g., EADDRINUSE)
+server.on('error', (err) => {
+    console.error('💥 Server error event:', err);
+    if (err && err.code === 'EADDRINUSE') {
+        console.error(`💥 Port ${PORT} is already in use. Exiting.`);
+        process.exit(1);
+    }
+    // For other errors, rethrow to let the existing handlers catch them
+    throw err;
+});
+
 // Initialize Socket.io via Service
 socketService.initialize(server);
 
@@ -22,7 +33,7 @@ socketService.initialize(server);
 mongoose.connect(MONGODB_URI)
     .then(() => {
         console.log('✅ MongoDB connected successfully');
-        
+
         // Start maintenance service
         maintenanceService.start();
 

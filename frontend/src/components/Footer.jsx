@@ -31,10 +31,10 @@ const Footer = () => {
           <div style={styles.brandSection}>
             <div style={styles.logo}>
               <span style={styles.logoIcon}>📄</span>
-              <span style={styles.logoText}>ResumeCraft</span>
+              <span style={styles.logoText}>ResumeBanau</span>
             </div>
             <p style={styles.tagline}>
-                            Build professional, ATS-optimized resumes with AI-powered insights and real-time feedback.
+              Build professional, ATS-optimized resumes with AI-powered insights and real-time feedback.
             </p>
             <div style={styles.socialLinks}>
               <a href="#" style={styles.socialLink} aria-label="GitHub">
@@ -91,13 +91,13 @@ const Footer = () => {
                 <strong>BCA 6th Semester</strong>
               </p>
               <p style={styles.projectDetail}>
-                                Tribhuvan University
+                Tribhuvan University
               </p>
               <p style={styles.projectDetail}>
-                                Developed by: <strong>Sudip Sherpa</strong>
+                Developed by: <strong>Sudip Sherpa</strong>
               </p>
               <p style={styles.techStack}>
-                                Built with React, Node.js, MongoDB & AI Integration
+                Built with React, Node.js, MongoDB & AI Integration
               </p>
             </div>
           </div>
@@ -110,10 +110,10 @@ const Footer = () => {
         <div style={styles.bottomSection}>
           <div style={styles.copyright}>
             <p style={styles.copyrightText}>
-                            &copy; {currentYear} ResumeCraft AI. All rights reserved.
+              &copy; {currentYear} ResumeBanau. All rights reserved.
             </p>
             <p style={styles.subText}>
-                            BCA 6th Semester Project - Sudip Sherpa
+              BCA 6th Semester Project - Sudip Sherpa
             </p>
           </div>
 

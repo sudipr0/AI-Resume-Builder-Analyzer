@@ -54,24 +54,42 @@ export const extractResumeContent = async (req, res) => {
                 throw new Error('Unsupported file type');
             }
         } catch (err) {
-            fs.unlinkSync(filePath); // Cleanup
+            if (fs.existsSync(filePath)) fs.unlinkSync(filePath); // Cleanup
+            // Log full error for debugging
+            logger.error('Failed to parse file text', { message: err.message, stack: err.stack });
+
             if (userId) {
                 SocketService.notifyUser(userId, 'upload:error', {
                     message: 'Failed to parse file text',
                     error: err.message
                 });
             }
-            return res.status(400).json({ success: false, message: 'Failed to parse file text', error: err.message });
+
+            // In development include a more descriptive error
+            const errMsg = err && err.message ? err.message : String(err);
+            return res.status(400).json({ success: false, message: 'Failed to parse file text', error: errMsg });
         }
 
         if (!rawText || rawText.trim().length < 50) {
+            const extractedLength = rawText ? rawText.trim().length : 0;
+            logger.warn('Insufficient extracted text from uploaded file', { originalName, mimeType, fileSize: file.size, extractedLength });
+
             if (fs.existsSync(filePath)) fs.unlinkSync(filePath); // Cleanup
             if (userId) {
                 SocketService.notifyUser(userId, 'upload:error', {
                     message: 'Could not extract enough text from document'
                 });
             }
-            return res.status(400).json({ success: false, message: 'Could not extract enough text from document' });
+
+            const responseBody = {
+                success: false,
+                message: 'Could not extract enough text from document',
+                extractedLength
+            };
+            if (process.env.NODE_ENV === 'development') {
+                responseBody.debugSample = rawText ? rawText.slice(0, 500) : '';
+            }
+            return res.status(400).json(responseBody);
         }
 
         // 2. Upload raw file to Cloudinary (optional but requested)
@@ -79,7 +97,7 @@ export const extractResumeContent = async (req, res) => {
         try {
             const uploadResult = await cloudinary.uploader.upload(filePath, {
                 folder: 'resumes/raw',
-                resource_type: mimeType === 'application/pdf' ? 'image' : 'auto' 
+                resource_type: mimeType === 'application/pdf' ? 'image' : 'auto'
             });
             cloudinaryUrl = uploadResult.secure_url;
         } catch (err) {
@@ -102,10 +120,10 @@ export const extractResumeContent = async (req, res) => {
         try {
             // Use the new aiService extract method
             const aiResponse = await aiService.extract(rawText);
-            
+
             // Ensure we have a valid object
             extractedData = typeof aiResponse === 'string' ? JSON.parse(aiResponse) : aiResponse;
-            
+
             // Basic validation of the structure
             if (!extractedData || (!extractedData.personal && !extractedData.experience)) {
                 throw new Error('AI returned invalid or empty structure');
@@ -159,14 +177,14 @@ export const extractResumeContent = async (req, res) => {
 
     } catch (error) {
         logger.error('Extraction error:', error);
-        
+
         const userId = req.user ? (req.user._id ? req.user._id.toString() : req.user.id) : null;
         if (userId) {
             SocketService.notifyUser(userId, 'upload:error', {
                 message: 'Internal server error during extraction'
             });
         }
-        
+
         return res.status(500).json({ success: false, message: 'Internal server error during extraction' });
     }
 };

@@ -13,6 +13,12 @@ You are ResumeAI, an expert resume builder and career coach assistant.
 Your job is to help users create, optimize, and analyze professional resumes 
 that pass ATS systems and impress hiring managers.
 
+CORE ENGINE LOGIC:
+Analyze user input (resume, JD, skills). Generate a highly optimized resume tailored to the target role. 
+Use ATS-friendly formatting, strong action verbs, and quantifiable achievements. 
+Suggest missing keywords, improve phrasing, and auto-generate project descriptions if needed. 
+Ensure clarity, impact, and professional tone.
+
 CORE IDENTITY:
 - You are precise, encouraging, and data-driven.
 - You speak like a senior career coach who has reviewed 10,000+ resumes.
@@ -31,6 +37,35 @@ STRICT RULES:
 6. Keep all output in the user's chosen language.
 7. Always output valid JSON in code blocks when requested.
 `;
+
+/**
+ * SPECIALIZED TEMPLATE PROMPTS
+ * These prompts are used when a user selects a specific template style.
+ */
+export const RESUME_TEMPLATES_PROMPTS = {
+  modern_tech: "Generate a modern tech resume with strong emphasis on skills, projects, and measurable achievements. Highlight programming languages, frameworks, and tools. Use bullet points with impact metrics (%, numbers). Keep layout minimal and ATS-friendly.",
+  creative_designer: "Create a visually appealing creative resume with emphasis on portfolio, design tools, and creativity. Include sections for projects, case studies, and design process. Use engaging tone and highlight originality.",
+  corporate_professional: "Generate a professional corporate resume with a formal tone. Focus on experience, leadership, and business impact. Use structured sections and strong action verbs.",
+  data_analyst: "Build a data-focused resume emphasizing analytics tools (Excel, SQL, Python, Power BI). Include measurable insights, dashboards, and business outcomes.",
+  fresher_student: "Create a resume for a fresher with focus on academic projects, internships, and skills. Highlight learning ability, certifications, and achievements.",
+  remote_job: "Generate a resume optimized for remote jobs. Highlight collaboration tools, communication skills, and remote work experience.",
+  startup: "Create a startup-focused resume highlighting adaptability, multitasking, and growth impact. Use strong metrics and problem-solving examples.",
+  executive: "Generate an executive-level resume emphasizing leadership, strategic decisions, and company growth metrics. Include achievements at organizational level.",
+  engineering: "Build an engineering resume focusing on technical skills, systems, and problem-solving. Include projects with technical explanation.",
+  marketing: "Generate a marketing resume with emphasis on campaigns, ROI, growth metrics, and audience engagement.",
+  ai_ml: "Create an AI/ML resume highlighting models, datasets, algorithms, and real-world applications. Include GitHub links.",
+  mobile_dev: "Generate a mobile developer resume focusing on apps built, technologies used, and app performance metrics.",
+  web_dev: "Create a web developer resume highlighting frontend/backend technologies, live projects, and performance improvements.",
+  ats_optimized: "Generate an ATS-friendly resume with optimized keywords based on job description. Ensure readability and proper formatting.",
+  skill_based: "Create a skill-based resume focusing on competencies rather than work history. Group skills into categories with examples.",
+  career_change: "Generate a resume for career transition highlighting transferable skills and relevant experiences.",
+  internship: "Build an internship resume focusing on education, projects, and enthusiasm for learning.",
+  government: "Generate a structured resume suitable for government jobs with detailed education, certifications, and experience.",
+  academic: "Create an academic CV including publications, research, conferences, and teaching experience.",
+  entrepreneur: "Generate a resume for an entrepreneur highlighting startups, revenue growth, and innovation.",
+  minimal: "Create a one-page resume summarizing key skills, experience, and achievements with maximum clarity.",
+  project_based: "Generate a resume structured around projects with detailed descriptions, tools used, and outcomes."
+};
 
 export const EXTRACT_RESUME_TEXT_PROMPT = `
 ${RESUME_AI_SYSTEM_PROMPT}

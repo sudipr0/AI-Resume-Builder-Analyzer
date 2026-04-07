@@ -17,8 +17,11 @@
   --success-color: #10B981;
   --error-color: #EF4444;
   --warning-color: #F59E0B;
-  --text-primary: #334155;
-  --text-secondary: #64748b;
+  --text-primary: #000000;
+  --text-secondary: #000000;
+  --space-small: 8px;
+  --space-medium: 16px;
+  --space-large: 24px;
   --bg-primary: #f8fafc;
   --bg-white: #ffffff;
   --border-color: #e2e8f0;

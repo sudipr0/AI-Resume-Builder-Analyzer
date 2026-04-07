@@ -604,14 +604,28 @@ const resumeService = {
     try {
       logger.info(`Exporting resume: ${id} as ${format}`);
 
-      const response = await coreApi.get(`/resumes/${id}/export?format=${format}`, {
+      // Handle JSON locally if possible
+      if (format === 'json') {
+        const resume = await this.getResume(id);
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(resume, null, 2));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href",     dataStr);
+        downloadAnchorNode.setAttribute("download", `resume-${id}.json`);
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+        return { success: true };
+      }
+
+      const response = await api.get(`/resumes/${id}/export?format=${format}`, {
         responseType: 'blob'
       });
 
-      const url = window.URL.createObjectURL(new Blob([response]));
+      const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `resume-${id}.${format}`);
+      const extension = format === 'word' ? 'docx' : format;
+      link.setAttribute('download', `resume-${id}.${extension}`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -621,6 +635,21 @@ const resumeService = {
       return { success: true, url };
     } catch (error) {
       logger.error(`Failed to export resume ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // GENERATE TEMPLATE BASED RESUME (AI)
+  async generateTemplateBasedResume(templateId, userData) {
+    try {
+      logger.info(`AI Generating resume for template: ${templateId}`);
+      const response = await coreApi.post('/ai/generate-template-resume', {
+        templateId,
+        userData
+      });
+      return response?.data || response;
+    } catch (error) {
+      logger.error('AI Template generation failed:', error);
       throw error;
     }
   },

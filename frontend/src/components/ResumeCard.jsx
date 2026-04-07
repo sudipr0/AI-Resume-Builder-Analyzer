@@ -1,34 +1,74 @@
 // src/components/ResumeCard.jsx
 import React from 'react';
 import { motion } from 'framer-motion';
-import { 
-    Edit3, 
-    Trash2, 
-    Zap, 
-    Download, 
-    Eye, 
+import {
+    Edit3,
+    Trash2,
+    Zap,
+    Download,
+    Eye,
     Calendar,
     MoreVertical,
     Star,
     Share2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 const ResumeCard = ({ resume, darkMode, view = 'grid' }) => {
     const navigate = useNavigate();
     const isCompleted = resume.status === 'completed';
     const score = resume.analysis?.atsScore || 0;
+    const resumeId = resume?._id || resume?.id;
 
-    const handleEdit = () => navigate(`/builder/${resume._id}`);
-    const handleView = () => navigate(`/preview/${resume._id}`);
+    const handleEdit = (e) => {
+        if (e?.preventDefault) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        console.log('🔍 ResumeCard - edit click', {
+            resumeId,
+            title: resume?.title,
+            navigationPath: `/builder/edit/${resumeId}`
+        });
+
+        if (!resumeId) {
+            console.error('❌ ResumeCard: missing resumeId', resume);
+            toast.error('Invalid resume ID');
+            return;
+        }
+
+        navigate(`/builder/edit/${resumeId}`);
+    };
+
+    const handleView = (e) => {
+        if (e?.preventDefault) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        console.log('🔍 ResumeCard - preview click', {
+            resumeId,
+            title: resume?.title,
+            navigationPath: `/builder/preview/${resumeId}`
+        });
+
+        if (!resumeId) {
+            console.error('❌ ResumeCard: missing resumeId', resume);
+            toast.error('Invalid resume ID');
+            return;
+        }
+
+        navigate(`/builder/preview/${resumeId}`);
+    };
 
     if (view === 'list') {
         return (
-            <motion.div 
+            <motion.div
                 whileHover={{ x: 5 }}
-                className={`p-4 rounded-2xl border flex items-center justify-between gap-4 transition-all ${
-                    darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100 shadow-sm'
-                }`}
+                className={`p-4 rounded-2xl border flex items-center justify-between gap-4 transition-all ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100 shadow-sm'
+                    }`}
             >
                 <div className="flex items-center gap-4 flex-1">
                     <div className={`p-3 rounded-xl ${darkMode ? 'bg-gray-900' : 'bg-blue-50'}`}>
@@ -41,9 +81,8 @@ const ResumeCard = ({ resume, darkMode, view = 'grid' }) => {
                                 <Calendar className="w-3 h-3" />
                                 {new Date(resume.updatedAt).toLocaleDateString()}
                             </span>
-                            <span className={`px-2 py-0.5 rounded-full capitalize ${
-                                isCompleted ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'
-                            }`}>
+                            <span className={`px-2 py-0.5 rounded-full capitalize ${isCompleted ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'
+                                }`}>
                                 {resume.status}
                             </span>
                         </div>
@@ -72,21 +111,19 @@ const ResumeCard = ({ resume, darkMode, view = 'grid' }) => {
     }
 
     return (
-        <motion.div 
+        <motion.div
             whileHover={{ y: -8 }}
-            className={`group relative rounded-3xl border overflow-hidden transition-all duration-300 ${
-                darkMode 
-                ? 'bg-gray-800 border-gray-700 hover:border-blue-500/50' 
+            className={`group relative rounded-3xl border overflow-hidden transition-all duration-300 ${darkMode
+                ? 'bg-gray-800 border-gray-700 hover:border-blue-500/50'
                 : 'bg-white border-gray-100 shadow-sm hover:shadow-xl hover:shadow-blue-500/10'
-            }`}
+                }`}
         >
             {/* Card Header/Thumbnail Preview */}
             <div className={`relative aspect-[3/4] overflow-hidden ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
                 <div className="absolute inset-0 p-6 flex flex-col justify-between z-10">
                     <div className="flex justify-between items-start">
-                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            isCompleted ? 'bg-green-500 text-white' : 'bg-amber-500 text-white shadow-lg shadow-amber-500/20'
-                        }`}>
+                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${isCompleted ? 'bg-green-500 text-white' : 'bg-amber-500 text-white shadow-lg shadow-amber-500/20'
+                            }`}>
                             {resume.status}
                         </span>
                         <button className="p-2 bg-white/10 backdrop-blur-md rounded-full text-white hover:bg-white/20 transition-all opacity-0 group-hover:opacity-100">
@@ -95,14 +132,14 @@ const ResumeCard = ({ resume, darkMode, view = 'grid' }) => {
                     </div>
 
                     <div className="translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 flex flex-col gap-2">
-                        <button 
+                        <button
                             onClick={handleEdit}
                             className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-xl shadow-blue-600/30"
                         >
                             <Edit3 className="w-4 h-4" />
                             Continue Building
                         </button>
-                        <button 
+                        <button
                             onClick={handleView}
                             className="w-full py-3 bg-white text-gray-900 rounded-xl font-bold flex items-center justify-center gap-2"
                         >
@@ -114,9 +151,8 @@ const ResumeCard = ({ resume, darkMode, view = 'grid' }) => {
 
                 {/* ATS Score Badge */}
                 <div className="absolute bottom-4 right-4 z-20">
-                    <div className={`p-2 rounded-2xl backdrop-blur-xl border flex items-center gap-2 ${
-                        darkMode ? 'bg-black/40 border-white/10' : 'bg-white/80 border-black/5'
-                    }`}>
+                    <div className={`p-2 rounded-2xl backdrop-blur-xl border flex items-center gap-2 ${darkMode ? 'bg-black/40 border-white/10' : 'bg-white/80 border-black/5'
+                        }`}>
                         <div className={`p-1.5 rounded-lg ${score >= 80 ? 'bg-green-500' : 'bg-amber-500'}`}>
                             <Zap className="w-3 h-3 text-white fill-current" />
                         </div>
@@ -142,7 +178,7 @@ const ResumeCard = ({ resume, darkMode, view = 'grid' }) => {
                         {resume.title}
                     </h3>
                 </div>
-                
+
                 <div className="flex items-center justify-between mt-4 pt-4 border-t dark:border-gray-700">
                     <div className="flex items-center gap-2 text-xs text-gray-500">
                         <Calendar className="w-3.5 h-3.5" />

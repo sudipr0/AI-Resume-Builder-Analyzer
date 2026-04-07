@@ -1,11 +1,20 @@
-// hooks/useAutoSave.js - AUTO-SAVE WITH BACKEND API INTEGRATION
+// hooks/useAutoSave.js - AUTO-SAVE WITH BACKEND API INTEGRATION & LOCAL BACKUP
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-const useAutoSave = ({ data, onSave, delay = 2000, enabled = true, apiUrl = null }) => {
+/**
+ * Hook for debounced auto-saving with local backup
+ */
+const useAutoSave = ({ 
+  data, 
+  onSave, 
+  delay = 2000, 
+  enabled = true, 
+  apiUrl = null,
+  localKey = null 
+}) => {
   const [isSaving, setIsSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState('idle'); // idle, saving, saved, error
+  const [saveStatus, setSaveStatus] = useState('saved'); // saved, saving, error
   const [lastSaved, setLastSaved] = useState(null);
-  const [saveCount, setSaveCount] = useState(0);
 
   const timeoutRef = useRef(null);
   const prevDataRef = useRef(null);
@@ -33,25 +42,17 @@ const useAutoSave = ({ data, onSave, delay = 2000, enabled = true, apiUrl = null
       setIsSaving(true);
       setSaveStatus('saving');
 
-      // Call custom onSave handler
-      if (onSaveRef.current) {
-        const result = await onSaveRef.current(dataToSave);
-
-        if (result !== false && isMountedRef.current) {
-          setLastSaved(new Date());
-          setSaveStatus('saved');
-          setSaveCount(prev => prev + 1);
-
-          // Reset status after 2 seconds
-          setTimeout(() => {
-            if (isMountedRef.current) {
-              setSaveStatus('idle');
-            }
-          }, 2000);
-        }
+      // 1. Immediate Local Backup
+      if (localKey) {
+        localStorage.setItem(localKey, JSON.stringify(dataToSave));
       }
 
-      // Also call API if provided
+      // 2. Call custom onSave handler (usually the API sync)
+      if (onSaveRef.current) {
+        await onSaveRef.current(dataToSave);
+      }
+
+      // 3. Also call direct API if provided
       if (apiUrl) {
         const response = await fetch(apiUrl, {
           method: 'PUT',
@@ -66,33 +67,36 @@ const useAutoSave = ({ data, onSave, delay = 2000, enabled = true, apiUrl = null
           throw new Error(`API save failed: ${response.statusText}`);
         }
       }
+
+      if (isMountedRef.current) {
+        setLastSaved(new Date());
+        setSaveStatus('saved');
+      }
     } catch (error) {
       console.error('Auto-save error:', error);
       if (isMountedRef.current) {
         setSaveStatus('error');
-
-        // Reset error status after 3 seconds
-        setTimeout(() => {
-          if (isMountedRef.current) {
-            setSaveStatus('idle');
-          }
-        }, 3000);
       }
     } finally {
       if (isMountedRef.current) {
         setIsSaving(false);
       }
     }
-  }, [apiUrl]);
+  }, [apiUrl, localKey]);
 
   useEffect(() => {
-    if (!enabled || !data || !onSaveRef.current) {
+    if (!enabled || !data) {
       return;
     }
 
-    const dataChanged = JSON.stringify(data) !== JSON.stringify(prevDataRef.current);
+    // Deep compare to avoid unnecessary saves
+    const dataString = JSON.stringify(data);
+    const dataChanged = dataString !== JSON.stringify(prevDataRef.current);
 
     if (dataChanged) {
+      // Set status to unsaved/saving immediately to provide feedback
+      setSaveStatus('saving');
+      
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
@@ -100,7 +104,7 @@ const useAutoSave = ({ data, onSave, delay = 2000, enabled = true, apiUrl = null
       timeoutRef.current = setTimeout(() => {
         if (isMountedRef.current) {
           performSave(data);
-          prevDataRef.current = JSON.parse(JSON.stringify(data));
+          prevDataRef.current = JSON.parse(dataString);
         }
       }, delay);
     }
@@ -126,7 +130,6 @@ const useAutoSave = ({ data, onSave, delay = 2000, enabled = true, apiUrl = null
     isSaving,
     saveStatus,
     lastSaved,
-    saveCount,
     forceSave
   };
 };

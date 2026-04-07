@@ -11,7 +11,9 @@ import {
   SUGGEST_IMPROVEMENTS_PROMPT,
   SMART_EXTRACT_PROMPT,
   SCORE_RESUME_PROMPT,
-  GENERATE_FINAL_RESUME_PROMPT
+  GENERATE_FINAL_RESUME_PROMPT,
+  RESUME_AI_SYSTEM_PROMPT,
+  RESUME_TEMPLATES_PROMPTS
 } from './ai.prompts.js';
 import { PROMPTS } from './config/prompts.js';
 
@@ -387,6 +389,18 @@ class AIService {
   async finalVerification(resumeData, checklist, options = {}) {
     const userPrompt = PROMPTS.finalVerification(resumeData, checklist);
     return this.executeDirect('You are a final AI verifier ensuring resumes are 100% complete.', userPrompt, options);
+  }
+
+  async generateTemplateBasedResume(templateId, userData, options = {}) {
+    const templatePrompt = RESUME_TEMPLATES_PROMPTS[templateId];
+    if (!templatePrompt) {
+      throw new Error(`Invalid template ID: ${templateId}`);
+    }
+
+    const systemPrompt = `${RESUME_AI_SYSTEM_PROMPT}\n\nTEMPLATE SPECIFIC INSTRUCTIONS:\n${templatePrompt}`;
+    const userPrompt = `USER DATA:\n${JSON.stringify(userData, null, 2)}\n\nPlease generate an enhanced resume based on the template instructions. Return JSON format with "summary", "experience", and "skills" keys.`;
+
+    return this.executeDirect(systemPrompt, userPrompt, options);
   }
 
   getStats() {

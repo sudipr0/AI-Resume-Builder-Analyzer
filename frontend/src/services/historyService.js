@@ -15,7 +15,7 @@ class HistoryService {
     async getResumeHistory() {
         try {
             // Try to fetch from backend first
-            const response = await apiService.resume.getResumes();
+            const response = await apiService.resume.getUserResumes();
             if (response && Array.isArray(response)) {
                 const history = response.map(resume => ({
                     id: resume._id,

@@ -349,7 +349,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem(STORAGE_KEYS.GOOGLE_STATE, state);
 
       const redirectUri = `${window.location.origin}/auth/callback`;
-      const authUrl = `${apiService.baseURL}/api/auth/google?state=${state}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+      const authUrl = `${window.location.origin}/api/auth/google?state=${state}&redirect_uri=${encodeURIComponent(redirectUri)}`;
 
       console.log('🌐 Redirecting to Google OAuth URL:', authUrl);
       window.location.href = authUrl;

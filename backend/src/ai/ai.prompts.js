@@ -187,28 +187,88 @@ Rules for analysis:
 export const BUILD_RESUME_PROMPT = `
 ${RESUME_AI_SYSTEM_PROMPT}
 
-RESUME ENHANCER CAPABILITY:
-Improve a resume or specific section using professional standards.
+PRO-LEVEL RESUME GENERATION:
+You are a world-class resume writer and ATS optimization expert. Transform user input into a highly professional, impactful, and ATS-optimized resume.
 
 USER DATA:
 {userData}
 
+JOB DESCRIPTION (if provided):
+{jobDescription}
+
+INTELLIGENT PROCESSING RULES:
+1. REWRITE WITH IMPACT
+   - Convert basic sentences → strong action statements
+   - Use power verbs: Built, Led, Optimized, Increased, Developed, Engineered, Spearheaded, Architected
+   - Remove weak phrases like "worked on", "helped with", "responsible for"
+
+2. ADD MEASURABLE RESULTS (MANDATORY)
+   - If user doesn't provide numbers, intelligently estimate realistic metrics
+   - Performance improvements (%), Time saved, Users impacted, Revenue impact
+
+3. JOB DESCRIPTION MATCHING (when JD is provided)
+   - Extract keywords from JD and inject them naturally into the resume
+   - Match tone with job role
+
+4. FILL MISSING CONTENT SMARTLY
+   - If data is incomplete, generate realistic project descriptions
+   - Add responsibilities based on role
+   - Suggest relevant skills based on experience
+
+5. ATS OPTIMIZATION
+   - Use clean formatting and relevant keywords
+   - Avoid complex symbols, ensure readability
+
+STRICT RULES:
+- No generic phrases: "hardworking", "team player", "passionate", "detail-oriented"
+- No long paragraphs — bullet points only (1–2 lines max)
+- No repetition across sections
+
 BULLET POINT FORMULA:
-[Strong Action Verb] + [What you did] + [How / Tool Used] + [Measurable Result or Scale]
+[Strong Action Verb] + [What you did] + [How/Tool Used] + [Measurable Result or Scale]
 
-ACTION VERB BANK:
-Impact: Drove, Accelerated, Amplified, Boosted, Grew
-Built: Engineered, Architected, Developed, Launched, Shipped
-Led: Spearheaded, Directed, Championed, Orchestrated, Unified
-Improved: Optimized, Streamlined, Refactored, Automated, Modernized
-Analyzed: Diagnosed, Evaluated, Benchmarked, Audited, Mapped
+EXAMPLES:
+❌ "Worked on website" 
+✅ "Developed and optimized a responsive web application improving load speed by 40%"
 
-Return JSON with enhanced content:
+❌ "Helped with sales"
+✅ "Drove $120K in new ARR by executing targeted outreach campaigns across 5 verticals"
+
+Return JSON with the following structure:
 {
-  "summary": "",
-  "experience": [...],
-  "skills": {...},
-  "enhancements_made": []
+  "summary": "3-4 line professional summary (strong impact, no generic phrases)",
+  "experience": [
+    {
+      "title": "",
+      "company": "",
+      "duration": "",
+      "location": "",
+      "bullets": ["action-oriented bullet with metrics", "..."]
+    }
+  ],
+  "skills": {
+    "technical": [],
+    "soft": [],
+    "tools": []
+  },
+  "projects": [
+    {
+      "name": "",
+      "tech": "",
+      "description": "what it does + impact metrics",
+      "link": ""
+    }
+  ],
+  "improvement_summary": {
+    "what_improved": [],
+    "what_added": []
+  },
+  "suggested_keywords": [],
+  "ats_score": {
+    "score": 0,
+    "strengths": [],
+    "weaknesses": []
+  }
 }
 `;
 

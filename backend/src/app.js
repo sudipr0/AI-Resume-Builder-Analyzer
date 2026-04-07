@@ -8,6 +8,7 @@ import cookieParser from 'cookie-parser';
 import mongoSanitize from 'express-mongo-sanitize';
 import hpp from 'hpp';
 import passport from 'passport';
+import session from 'express-session';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -30,8 +31,22 @@ app.use(helmet({
     contentSecurityPolicy: false, // Set to true in production if needed
     crossOriginEmbedderPolicy: false,
 }));
+const allowedOrigins = process.env.CLIENT_URL?.split(',') || [];
+if (process.env.REPLIT_DEV_DOMAIN) {
+    allowedOrigins.push(`https://${process.env.REPLIT_DEV_DOMAIN}`);
+}
+if (!allowedOrigins.length) {
+    allowedOrigins.push('http://localhost:3000', 'http://localhost:5000', 'http://localhost:5173');
+}
+
 app.use(cors({
-    origin: process.env.CLIENT_URL?.split(',') || ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:5174'],
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.some(o => origin.startsWith(o))) {
+            callback(null, true);
+        } else {
+            callback(null, true); // Allow all in dev; tighten in production
+        }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: [
@@ -61,10 +76,25 @@ app.use(mongoSanitize());
 app.use(hpp());
 
 // ======================
+// SESSION (required for OAuth state)
+// ======================
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'resumecraft-dev-secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        maxAge: 15 * 60 * 1000 // 15 minutes (just for OAuth flow)
+    }
+}));
+
+// ======================
 // PASSPORT (OAuth)
 // ======================
 configurePassport();
 app.use(passport.initialize());
+app.use(passport.session());
 
 // ======================
 // STATIC FILES

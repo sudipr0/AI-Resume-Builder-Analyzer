@@ -29,8 +29,8 @@ const GoogleOAuthButton = () => {
 
       console.log('✅ Google OAuth is enabled');
 
-      // Get Google OAuth URL from backend (or construct it)
-      const authUrl = `${apiService.baseURL}/api/auth/google?redirect_uri=${encodeURIComponent(window.location.origin + '/auth/callback')}&prompt=select_account`;
+      // Use window.location.origin so Vite proxy routes it correctly through the dev server
+      const authUrl = `${window.location.origin}/api/auth/google?redirect_uri=${encodeURIComponent(window.location.origin + '/auth/callback')}&prompt=select_account`;
 
       console.log('🔗 Redirecting to:', authUrl);
 

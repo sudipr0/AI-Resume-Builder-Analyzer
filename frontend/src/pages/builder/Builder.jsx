@@ -5,7 +5,6 @@ import { useResume } from '../../context/ResumeContext';
 import { useAI } from '../../context/AIContext';
 import { toast } from 'react-hot-toast';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import useAutoSave from '../../hooks/useAutoSave';
 
 // Icons
 import {
@@ -74,6 +73,7 @@ const Builder = ({ isNewResume: propIsNew, resumeId, importedData }) => {
   const [jobDescription, setJobDescription] = useState('');
   const [localAiSuggestions, setLocalAiSuggestions] = useState([]);
   const [completion, setCompletion] = useState(0);
+  const [autoSaveStatus, setAutoSaveStatus] = useState('saved');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.innerWidth < 1024);
   const [validationErrors, setValidationErrors] = useState([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -120,6 +120,7 @@ const Builder = ({ isNewResume: propIsNew, resumeId, importedData }) => {
   // ============ REFS ============
   const editorRef = useRef(null);
   const previewRef = useRef(null);
+  const autoSaveTimeoutRef = useRef(null);
   const resumeNameInputRef = useRef(null);
   const initializationDoneRef = useRef(false);
 
@@ -147,15 +148,6 @@ const Builder = ({ isNewResume: propIsNew, resumeId, importedData }) => {
     aiScore
   } = useAI();
 
-  // ============ AUTO-SAVE HOOK ============
-  const { saveStatus: autoSaveStatus, forceSave } = useAutoSave({
-    data: currentResume,
-    onSave: quickSave,
-    enabled: !!currentResume && !isNewResume && !!currentResume._id && !isCreating,
-    localKey: currentResume ? `resume_backup_${currentResume._id || 'new'}` : null,
-    delay: 3000
-  });
-
   // ============ WIZARD STEPS ============
   const wizardSteps = useMemo(() => [
     { id: 'personal', label: 'Personal Info', icon: '👤', component: PersonalInfoPage, required: true },
@@ -168,18 +160,6 @@ const Builder = ({ isNewResume: propIsNew, resumeId, importedData }) => {
     { id: 'languages', label: 'Languages', icon: '🌐', component: LanguagesPage, required: false },
     { id: 'finalize', label: 'Finalize', icon: '✅', component: null, required: true }
   ], []);
-
-  // Map wizard section IDs to resume model keys
-  const SECTION_TO_MODEL_KEY = useMemo(() => ({
-    personal: 'personalInfo',
-    summary: 'summary',
-    experience: 'experience',
-    skills: 'skills',
-    education: 'education',
-    projects: 'projects',
-    certifications: 'certifications',
-    languages: 'languages'
-  }), []);
 
   // ============ SIMPLIFIED INITIALIZATION ============
   useEffect(() => {
@@ -289,12 +269,42 @@ const Builder = ({ isNewResume: propIsNew, resumeId, importedData }) => {
     }
   }, [currentResume, completion]);
 
+  // ============ AUTO-SAVE (only for existing resumes) ============
+  useEffect(() => {
+    if (!currentResume || isNewResume || !currentResume._id || isCreating) {
+      return;
+    }
+
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+
+    autoSaveTimeoutRef.current = setTimeout(async () => {
+      setAutoSaveStatus('saving');
+      try {
+        await quickSave();
+        setAutoSaveStatus('saved');
+      } catch (error) {
+        console.error('Auto-save failed:', error);
+        setAutoSaveStatus('error');
+      }
+    }, 10000);
+
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [currentResume, isNewResume, isCreating, quickSave]);
+
   // ============ MANUAL SAVE ============
   const handleManualSave = async () => {
     if (!currentResume) {
       toast.error('No resume data to save');
       return;
     }
+
+    setAutoSaveStatus('saving');
 
     try {
       let savedResume;
@@ -315,10 +325,15 @@ const Builder = ({ isNewResume: propIsNew, resumeId, importedData }) => {
         toast.success('Resume saved successfully!');
       }
 
+      if (savedResume) {
+        setAutoSaveStatus('saved');
+      }
+
       setIsCreating(false);
       return savedResume;
     } catch (error) {
       console.error('Save failed:', error);
+      setAutoSaveStatus('error');
       toast.error(`Failed to save: ${error.message}`);
       setIsCreating(false);
       throw error;
@@ -362,30 +377,10 @@ const Builder = ({ isNewResume: propIsNew, resumeId, importedData }) => {
   };
 
   // ============ WIZARD NAVIGATION ============
-  const handleNextStep = async () => {
-    // Automatically save data when moving to next step
-    if (typeof forceSave === 'function') {
-      forceSave();
-    }
-
+  const handleNextStep = () => {
     if (wizardStep < wizardSteps.length - 1) {
       setWizardStep(wizardStep + 1);
       setActiveSection(wizardSteps[wizardStep + 1].id);
-    } else {
-      // Handle 'Finish' button click on the last step
-      try {
-        toast.loading('Saving and completing your resume...', { id: 'finish-save' });
-        await handleManualSave();
-        toast.success('Resume completed and saved!', { id: 'finish-save' });
-        
-        // Redirect to dashboard after a short delay
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 1500);
-      } catch (error) {
-        console.error('Error finishing resume:', error);
-        toast.error('Failed to save resume. Please try again.', { id: 'finish-save' });
-      }
     }
   };
 
@@ -397,10 +392,6 @@ const Builder = ({ isNewResume: propIsNew, resumeId, importedData }) => {
   };
 
   const handleJumpToStep = (index) => {
-    // Automatically save data when jumping between steps
-    if (typeof forceSave === 'function') {
-      forceSave();
-    }
     setWizardStep(index);
     setActiveSection(wizardSteps[index].id);
   };
@@ -456,35 +447,6 @@ const Builder = ({ isNewResume: propIsNew, resumeId, importedData }) => {
       }
     } catch (error) {
       toast.error('Failed to generate summary');
-    }
-  };
-
-  // ============ TEMPLATE HANDLING ============
-  const handleTemplateSelect = async (templateId) => {
-    // Update basic template setting
-    handleUpdateResume({
-      settings: { ...currentResume?.settings, template: templateId }
-    });
-
-    // Ask user if they want to apply AI optimization for this specific template style
-    const shouldOptimize = window.confirm(`Would you like AI to optimize your resume content for the ${templateId.replace('_', ' ')} style?`);
-    
-    if (shouldOptimize && currentResume) {
-      const toastId = toast.loading(`AI is optimizing for ${templateId.replace('_', ' ')}...`);
-      try {
-        const result = await apiService.resume.generateTemplateBasedResume(templateId, currentResume);
-        if (result.success && result.data) {
-          handleUpdateResume({
-            summary: result.data.summary || currentResume.summary,
-            experience: result.data.experience || currentResume.experience,
-            skills: result.data.skills || currentResume.skills
-          });
-          toast.success('AI optimization applied!', { id: toastId });
-        }
-      } catch (error) {
-        console.error('AI optimization failed:', error);
-        toast.error('AI optimization failed, but template was changed.', { id: toastId });
-      }
     }
   };
 
@@ -601,7 +563,7 @@ const Builder = ({ isNewResume: propIsNew, resumeId, importedData }) => {
   const atsScore = calculateATSScore();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-cyan-50/30 text-black">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-cyan-50/30">
       <Navbar />
 
       {/* Main Builder Area */}
@@ -677,7 +639,7 @@ const Builder = ({ isNewResume: propIsNew, resumeId, importedData }) => {
 
           {/* Editor and Preview */}
           <div className="flex-1 flex overflow-hidden">
-            <div className={viewClasses.editor + " h-full overflow-y-auto p-4 md:p-6"}>
+            <div className={viewClasses.editor + " h-full overflow-y-auto p-4 sm:p-6 lg:p-8"}>
               <div className="max-w-3xl mx-auto">
                 <motion.div
                   key={activeSection}
@@ -705,8 +667,8 @@ const Builder = ({ isNewResume: propIsNew, resumeId, importedData }) => {
                     </div>
                   ) : CurrentComponent && (
                     <CurrentComponent
-                      data={currentResume?.[SECTION_TO_MODEL_KEY[activeSection] || activeSection] || {}}
-                      onUpdate={(data) => handleUpdateResume({ [SECTION_TO_MODEL_KEY[activeSection] || activeSection]: data })}
+                      data={currentResume?.[activeSection] || {}}
+                      onUpdate={(data) => handleUpdateResume({ [activeSection]: data })}
                       resumeData={currentResume}
                     />
                   )}
@@ -730,9 +692,9 @@ const Builder = ({ isNewResume: propIsNew, resumeId, importedData }) => {
               </div>
             </div>
 
-            <div className={viewClasses.preview + " h-full bg-gray-50 overflow-hidden flex flex-col border-l border-gray-200 text-black"}>
-              <div className="bg-white border-b border-gray-200 p-4 flex items-center justify-between">
-                <span className="text-sm font-bold text-black uppercase tracking-widest ml-4">Live Preview</span>
+            <div className={viewClasses.preview + " h-full bg-gray-100 overflow-hidden flex flex-col border-l border-gray-200"}>
+              <div className="bg-white border-b border-gray-200 p-3 flex items-center justify-between">
+                <span className="text-sm font-bold text-gray-500 uppercase tracking-widest ml-4">Live Preview</span>
                 <div className="flex items-center gap-2">
                   <button onClick={handleZoomOut} className="p-2 hover:bg-gray-100 rounded-lg">
                     <ZoomOut className="w-4 h-4" />
@@ -743,13 +705,13 @@ const Builder = ({ isNewResume: propIsNew, resumeId, importedData }) => {
                   </button>
                 </div>
               </div>
-              <div className="flex-1 overflow-auto p-4 flex items-start justify-center bg-gray-50">
+              <div className="flex-1 overflow-auto p-8 flex justify-center bg-gray-200/50">
                 <div
                   className="shadow-2xl transition-transform duration-300 origin-top bg-white"
                   style={{
                     transform: `scale(${previewZoom})`,
-                    width: 'min(820px, 92%)',
-                    height: 'auto'
+                    width: '800px',
+                    height: '1100px'
                   }}
                 >
                   <ResumePreview
@@ -801,7 +763,9 @@ const Builder = ({ isNewResume: propIsNew, resumeId, importedData }) => {
           isOpen={showTemplateSelector}
           onClose={() => setShowTemplateSelector(false)}
           currentTemplate={currentResume?.settings?.template || 'modern'}
-          onTemplateSelect={handleTemplateSelect}
+          onTemplateSelect={(template) => handleUpdateResume({
+            settings: { ...currentResume?.settings, template }
+          })}
         />
       )}
     </div>
@@ -914,67 +878,26 @@ const AIPanel = ({ isOpen, onClose, jobDescription, setJobDescription, handleAIA
 const ExportManager = ({ isOpen, onClose, resumeData, onExportComplete }) => {
   if (!isOpen) return null;
 
-  const handleExport = async (format) => {
-    if (!resumeData?._id) {
-      toast.error('Please save your resume first');
-      return;
-    }
-
-    const toastId = toast.loading(`Exporting as ${format.toUpperCase()}...`);
-    try {
-      const result = await apiService.resume.exportResume(resumeData._id, format);
-      if (result.success) {
-        toast.success(`Resume exported as ${format.toUpperCase()}!`, { id: toastId });
-        if (onExportComplete) onExportComplete();
-      }
-    } catch (error) {
-      console.error('Export failed:', error);
-      toast.error(`Failed to export as ${format.toUpperCase()}`, { id: toastId });
-    }
+  const handleExport = () => {
+    toast.success('PDF export started!');
+    if (onExportComplete) onExportComplete();
   };
-
-  const exportOptions = [
-    { id: 'pdf', name: 'Professional PDF', icon: <FileText className="w-6 h-6 text-red-500" />, description: 'Best for printing and emailing' },
-    { id: 'word', name: 'Microsoft Word', icon: <FileText className="w-6 h-6 text-blue-500" />, description: 'Editable DOCX format' },
-    { id: 'json', name: 'Data Format (JSON)', icon: <Code className="w-6 h-6 text-amber-500" />, description: 'For backup and developers' }
-  ];
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl p-8 w-full max-w-lg text-center shadow-2xl">
-        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Download className="w-8 h-8 text-blue-600" />
-        </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Export Your Resume</h2>
-        <p className="text-gray-600 mb-8 text-sm px-4">Select your preferred format to download your professional resume.</p>
-        
-        <div className="space-y-3 mb-8">
-          {exportOptions.map((opt) => (
-            <button
-              key={opt.id}
-              onClick={() => handleExport(opt.id)}
-              className="w-full flex items-center gap-4 p-4 border border-gray-200 rounded-2xl hover:border-blue-500 hover:bg-blue-50/50 transition-all text-left group"
-            >
-              <div className="p-2 bg-white rounded-xl shadow-sm group-hover:scale-110 transition-transform">
-                {opt.icon}
-              </div>
-              <div className="flex-1">
-                <h3 className="font-bold text-gray-900">{opt.name}</h3>
-                <p className="text-xs text-gray-500">{opt.description}</p>
-              </div>
-              <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-blue-500" />
-            </button>
-          ))}
-        </div>
-
-        <div className="flex gap-3">
-          <button 
-            onClick={onClose} 
-            className="flex-1 py-3 px-6 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-colors"
-          >
-            Not Now
-          </button>
-        </div>
+      <div className="bg-white rounded-2xl p-8 w-full max-w-md text-center">
+        <Download className="w-16 h-16 text-blue-600 mx-auto mb-4" />
+        <h2 className="text-2xl font-bold mb-4">Export Resume</h2>
+        <p className="text-gray-600 mb-6">Download your resume as a professional PDF</p>
+        <button
+          onClick={handleExport}
+          className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700"
+        >
+          Download PDF
+        </button>
+        <button onClick={onClose} className="mt-4 text-gray-500 hover:text-gray-700">
+          Cancel
+        </button>
       </div>
     </div>
   );
@@ -984,66 +907,44 @@ const TemplateSelector = ({ isOpen, onClose, currentTemplate, onTemplateSelect }
   if (!isOpen) return null;
 
   const templates = [
-    { id: 'modern_tech', name: 'Modern Tech', description: 'GitHub/portfolio focused', color: 'blue' },
-    { id: 'creative_designer', name: 'Creative Designer', description: 'Visual-heavy, bold', color: 'purple' },
-    { id: 'corporate_professional', name: 'Corporate', description: 'Formal and structured', color: 'gray' },
-    { id: 'data_analyst', name: 'Data Analyst', description: 'Metrics and tools focused', color: 'cyan' },
-    { id: 'fresher_student', name: 'Fresher/Student', description: 'Skills and projects focus', color: 'green' },
-    { id: 'remote_job', name: 'Remote Job', description: 'Collaboration tools focus', color: 'indigo' },
-    { id: 'startup', name: 'Startup', description: 'Impact and growth focus', color: 'orange' },
-    { id: 'executive', name: 'Executive', description: 'Leadership and strategy', color: 'amber' },
-    { id: 'engineering', name: 'Engineering', description: 'Technical depth', color: 'slate' },
-    { id: 'marketing', name: 'Marketing', description: 'ROI and campaign focus', color: 'pink' },
-    { id: 'ai_ml', name: 'AI / ML', description: 'Models and datasets focus', color: 'violet' },
-    { id: 'mobile_dev', name: 'Mobile Dev', description: 'Apps and UI/UX focus', color: 'blue' },
-    { id: 'web_dev', name: 'Web Dev', description: 'Full-stack/live projects', color: 'emerald' },
-    { id: 'ats_optimized', name: 'ATS Optimized', description: 'Keyword-rich, clean', color: 'zinc' },
-    { id: 'skill_based', name: 'Skill Based', description: 'Competency grouping', color: 'teal' },
-    { id: 'career_change', name: 'Career Change', description: 'Transferable skills', color: 'rose' },
-    { id: 'internship', name: 'Internship', description: 'Entry-level, learning', color: 'lime' },
-    { id: 'government', name: 'Government', description: 'Detailed and formal', color: 'sky' },
-    { id: 'academic', name: 'Academic (CV)', description: 'Research and publications', color: 'indigo' },
-    { id: 'entrepreneur', name: 'Entrepreneur', description: 'Business impact focus', color: 'yellow' },
-    { id: 'minimal', name: 'Minimalist', description: 'One-page, maximum clarity', color: 'stone' },
-    { id: 'project_based', name: 'Project Based', description: 'Projects over jobs', color: 'orange' }
+    { id: 'modern', name: 'Modern', description: 'Clean and professional', color: 'blue' },
+    { id: 'classic', name: 'Classic', description: 'Traditional layout', color: 'gray' },
+    { id: 'creative', name: 'Creative', description: 'Bold and unique', color: 'purple' },
+    { id: 'minimal', name: 'Minimal', description: 'Simple and elegant', color: 'green' }
   ];
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl w-full max-w-5xl p-8 max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-3xl w-full max-w-4xl p-8">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-black">Select Advanced Template</h2>
+          <h2 className="text-2xl font-bold">Select Template</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
-            <X className="w-5 h-5 text-black" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto pr-2">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {templates.map(template => (
-              <div
-                key={template.id}
-                onClick={() => {
-                  onTemplateSelect(template.id);
-                  onClose();
-                }}
-                className={`p-4 border-2 rounded-2xl text-center cursor-pointer transition-all group ${currentTemplate === template.id
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
-                  }`}
-              >
-                <div className={`w-12 h-12 mx-auto mb-3 rounded-xl bg-gradient-to-br from-${template.color}-400 to-${template.color}-600 flex items-center justify-center text-white font-bold group-hover:scale-110 transition-transform`}>
-                  {template.name.charAt(0)}
-                </div>
-                <span className="font-bold text-sm text-black block mb-1">{template.name}</span>
-                <span className="text-[10px] text-gray-500 leading-tight">{template.description}</span>
-              </div>
-            ))}
-          </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {templates.map(template => (
+            <div
+              key={template.id}
+              onClick={() => {
+                onTemplateSelect(template.id);
+                onClose();
+              }}
+              className={`p-4 border-2 rounded-2xl text-center cursor-pointer transition-all ${currentTemplate === template.id
+                ? 'border-blue-500 bg-blue-50'
+                : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                }`}
+            >
+              <div className={`w-16 h-16 mx-auto mb-3 rounded-xl bg-gradient-to-br from-${template.color}-400 to-${template.color}-600`} />
+              <span className="font-bold capitalize block">{template.name}</span>
+              <span className="text-xs text-gray-500">{template.description}</span>
+            </div>
+          ))}
         </div>
 
-        <div className="mt-8 pt-4 border-t border-gray-100 flex justify-end">
-          <button onClick={onClose} className="px-6 py-2 bg-gray-200 text-gray-700 rounded-xl hover:bg-gray-300 font-medium">
+        <div className="mt-8 flex justify-end">
+          <button onClick={onClose} className="px-6 py-2 bg-gray-200 rounded-xl hover:bg-gray-300">
             Cancel
           </button>
         </div>
@@ -1053,3 +954,4 @@ const TemplateSelector = ({ isOpen, onClose, currentTemplate, onTemplateSelect }
 };
 
 export default React.memo(Builder);
+

@@ -114,6 +114,15 @@ router.post('/google/verify', async (req, res) => {
  * @access  Public
  */
 router.get('/google',
+    (req, res, next) => {
+        if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+            return res.status(501).json({
+                success: false,
+                error: 'Google OAuth is not configured on this server'
+            });
+        }
+        next();
+    },
     passport.authenticate('google-user', {
         scope: ['profile', 'email'],
         session: false,
@@ -137,7 +146,9 @@ router.get('/google/callback',
             const { user, token } = req.user;
 
             // Redirect to frontend with token
-            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+            const frontendUrl = process.env.FRONTEND_URL
+                || (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : null)
+                || 'http://localhost:5000';
             const redirectUrl = `${frontendUrl}/auth/callback?token=${token}&user=${encodeURIComponent(JSON.stringify({
                 id: user._id,
                 email: user.email,
@@ -152,7 +163,9 @@ router.get('/google/callback',
 
         } catch (error) {
             console.error('❌ Google callback error:', error);
-            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+            const frontendUrl = process.env.FRONTEND_URL
+                || (process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : null)
+                || 'http://localhost:5000';
             return res.redirect(`${frontendUrl}/login?error=auth_failed`);
         }
     }

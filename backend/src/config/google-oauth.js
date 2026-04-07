@@ -156,9 +156,13 @@ export const configureGoogleOAuth = (passportInstance) => {
     // ======================
     // GOOGLE USER STRATEGY
     // ======================
-    const userCallbackURL = process.env.NODE_ENV === 'production'
-        ? `${process.env.BACKEND_URL || process.env.API_URL}${GOOGLE_CONFIG.CALLBACK_URL}`
-        : `http://localhost:${process.env.PORT || 5001}${GOOGLE_CONFIG.CALLBACK_URL}`;
+    const getCallbackURL = (path) => {
+        if (process.env.GOOGLE_CALLBACK_URL) return process.env.GOOGLE_CALLBACK_URL;
+        if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}${path}`;
+        if (process.env.NODE_ENV === 'production') return `${process.env.BACKEND_URL || process.env.API_URL}${path}`;
+        return `http://localhost:${process.env.PORT || 5001}${path}`;
+    };
+    const userCallbackURL = getCallbackURL('/api/auth/google/callback');
 
     passportInstance.use('google-user', new GoogleStrategy({
         clientID: GOOGLE_CONFIG.CLIENT_ID,

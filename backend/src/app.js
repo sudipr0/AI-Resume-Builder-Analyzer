@@ -7,6 +7,7 @@ import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import mongoSanitize from 'express-mongo-sanitize';
 import hpp from 'hpp';
+import passport from 'passport';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -15,6 +16,7 @@ import apiRoutes from './routes/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFoundHandler } from './middleware/notFoundHandler.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
+import configurePassport from './config/passport.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,6 +59,12 @@ app.use(mongoSanitize());
 
 // Prevent HTTP parameter pollution
 app.use(hpp());
+
+// ======================
+// PASSPORT (OAuth)
+// ======================
+configurePassport();
+app.use(passport.initialize());
 
 // ======================
 // STATIC FILES

@@ -13,6 +13,8 @@ NODE_ENV = "development"
 CLIENT_URL = "http://localhost:5000"
 PUPPETEER_SKIP_DOWNLOAD = "true"
 PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
+FRONTEND_URL = "https://8a1bf312-c94f-41e9-bb24-9c9dc53199b4-00-2q8asuwg19q3.sisko.replit.dev"
+VITE_ENABLE_GOOGLE_AUTH = "true"
 
 [workflows]
 runButton = "Project"

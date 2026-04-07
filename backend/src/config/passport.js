@@ -3,7 +3,7 @@ import { Strategy as JwtStrategy, ExtractJwt } from 'passport-jwt';
 import { Strategy as LocalStrategy } from 'passport-local';
 import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
-import Admin from '../models/Admin.js';
+import Admin from '../admin/models/Admin.js';
 import { configureGoogleOAuth } from './google-oauth.js';
 
 /**

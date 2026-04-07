@@ -422,6 +422,22 @@ const authService = {
         return { success: false, valid: false, authenticated: false };
       }
     });
+  },
+
+  async getOAuthConfig() {
+    try {
+      const response = await coreApi.get('/auth/google/urls');
+      const data = response?.data || response;
+      return {
+        googleOAuth: {
+          enabled: data?.configured ?? false,
+          urls: data?.data
+        }
+      };
+    } catch (error) {
+      logger.warn('Could not fetch OAuth config:', error.message);
+      return { googleOAuth: { enabled: false } };
+    }
   }
 };
 

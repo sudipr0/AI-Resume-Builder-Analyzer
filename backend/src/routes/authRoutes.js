@@ -11,10 +11,14 @@ import {
 } from '../controllers/authController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
+import googleAuthRouter from './googleAuth.js';
 
 const router = express.Router();
 
-// Apply auth rate limiter
+// Mount Google OAuth routes BEFORE rate limiter
+router.use('/', googleAuthRouter);
+
+// Apply auth rate limiter to remaining routes
 router.use(authLimiter);
 
 // @route   POST /api/auth/register

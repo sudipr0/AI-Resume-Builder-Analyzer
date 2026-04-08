@@ -43,7 +43,7 @@ import { toast } from 'react-hot-toast';
 
 // Database Configuration
 const DATABASE_CONFIG = {
-  API_BASE_URL: process.env.REACT_APP_API_URL || 'http://localhost:5001',
+  API_BASE_URL: import.meta.env.VITE_API_URL || '',
   ENDPOINTS: {
     TEMPLATES: '/admin/templates',
     TEMPLATE_STATS: '/admin/templates/stats',

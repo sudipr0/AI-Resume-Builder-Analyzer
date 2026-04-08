@@ -4,10 +4,11 @@ import { toast } from 'react-hot-toast';
 
 // ==================== CONFIGURATION ====================
 const API_BASE_URL = (() => {
-  let url = import.meta.env?.VITE_API_URL || 'http://localhost:5001';
+  // Use VITE_API_URL if explicitly set, otherwise use relative paths (through Vite proxy)
+  let url = import.meta.env?.VITE_API_URL ?? '';
   url = url.replace(/\/api\/?$/, '');
   url = url.endsWith('/') ? url.slice(0, -1) : url;
-  console.log('🚀 API Base URL:', url);
+  console.log('🚀 API Base URL:', url || '(relative - using Vite proxy)');
   return url;
 })();
 
@@ -79,8 +80,9 @@ const tokenManager = {
       // Check if token has valid structure (header.payload.signature)
       const parts = token.split('.');
       if (parts.length !== 3) {
-        logger.warn('Token has invalid structure');
-        // Don't remove token here - let the interceptor handle it
+        logger.warn('Token has invalid structure - clearing');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user_data');
         return false;
       }
 

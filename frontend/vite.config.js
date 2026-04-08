@@ -8,7 +8,22 @@ export default defineConfig({
     host: '0.0.0.0',
     allowedHosts: true,
     proxy: {
-      '/api': 'http://localhost:5001'
+      '/api': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+        secure: false
+      },
+      '/health': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+        secure: false
+      },
+      '/socket.io': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+        secure: false,
+        ws: true
+      }
     }
   },
   define: {

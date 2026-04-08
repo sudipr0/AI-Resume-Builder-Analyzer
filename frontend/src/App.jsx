@@ -51,7 +51,7 @@ const queryClient = new QueryClient({
 
 // ================= ENVIRONMENT CONFIG =================
 const ENV = {
-  API_URL: import.meta.env.VITE_API_URL || 'http://localhost:5001/api',
+  API_URL: import.meta.env.VITE_API_URL || '/api',
   APP_NAME: import.meta.env.VITE_APP_NAME || 'ResumeBanau',
   APP_VERSION: import.meta.env.VITE_APP_VERSION || '1.0.0',
   APP_MODE: import.meta.env.MODE || 'development',

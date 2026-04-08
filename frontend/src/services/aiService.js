@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 // Use Vite environment variables
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 const USE_MOCK_AI = import.meta.env.VITE_USE_MOCK_AI === 'true';
 const IS_DEVELOPMENT = import.meta.env.MODE === 'development';
 

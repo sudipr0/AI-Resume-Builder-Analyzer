@@ -52,7 +52,7 @@ const VerifyEmail = () => {
       try {
         setIsLoading(true);
         // Call your API to verify the token
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001/api'}/auth/verify-email`, {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/auth/verify-email`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -113,7 +113,7 @@ const VerifyEmail = () => {
 
     try {
       setIsResending(true);
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001/api'}/auth/resend-verification`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/auth/resend-verification`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

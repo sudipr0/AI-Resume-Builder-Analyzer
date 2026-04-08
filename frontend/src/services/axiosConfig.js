@@ -3,7 +3,7 @@ import axios from 'axios';
 import { toast } from 'react-hot-toast';
 
 // Get environment variables
-let API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+let API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 // Ensure base url always targets the API root (append /api if user set only host)
 if (!API_BASE_URL.endsWith('/api')) {
   API_BASE_URL = API_BASE_URL.replace(/\/+$/, '') + '/api';

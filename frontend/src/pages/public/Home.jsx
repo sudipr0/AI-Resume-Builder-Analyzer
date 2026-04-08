@@ -74,7 +74,7 @@ const Home = () => {
   useEffect(() => {
     let mounted = true;
     const apiUrlRaw = import.meta.env.VITE_API_URL || '';
-    const apiBase = apiUrlRaw.replace(/\/+$/, '').replace(/\/api$/i, '') || 'http://localhost:5001';
+    const apiBase = apiUrlRaw.replace(/\/+$/, '').replace(/\/api$/i, '') || '';
 
     const checkHealth = async () => {
       try {

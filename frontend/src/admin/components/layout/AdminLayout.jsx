@@ -49,7 +49,7 @@ const AdminLayout = () => {
 
     try {
       // Check API
-      const apiResponse = await fetch('http://localhost:5001/health');
+      const apiResponse = await fetch('/health');
       if (apiResponse.ok) {
         status.api = 'healthy';
       } else {
@@ -61,7 +61,7 @@ const AdminLayout = () => {
 
     try {
       // Check database via API
-      const dbResponse = await fetch('http://localhost:5001/admin/health');
+      const dbResponse = await fetch('/api/admin/health');
       if (dbResponse.ok) {
         const data = await dbResponse.json();
         status.database = data.database === 'connected' ? 'healthy' : 'unhealthy';
@@ -88,7 +88,7 @@ const AdminLayout = () => {
     setRefreshing(true);
     try {
       // Try the main endpoint
-      const response = await apiCall('http://localhost:5001/admin/dashboard/global-stats');
+      const response = await apiCall('/api/admin/dashboard/global-stats');
 
       if (response.ok) {
         const data = await response.json();
@@ -166,7 +166,7 @@ const AdminLayout = () => {
   const handleExport = async (type) => {
     try {
       toast.loading('Preparing export...');
-      const response = await apiCall(`http://localhost:5001/admin/export/${type}`, {
+      const response = await apiCall(`/api/admin/export/${type}`, {
         method: 'POST'
       });
 

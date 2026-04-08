@@ -40,7 +40,7 @@ import {
 
 // API Service - Only uses real endpoints
 const API_SERVICE = {
-  baseUrl: process.env.REACT_APP_API_URL || 'http://localhost:5001',
+  baseUrl: import.meta.env.VITE_API_URL || '',
 
   getAuthToken() {
     return localStorage.getItem('adminToken') || localStorage.getItem('token');

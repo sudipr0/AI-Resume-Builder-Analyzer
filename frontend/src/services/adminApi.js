@@ -3,7 +3,7 @@ import axios from 'axios';
 // ======================
 // CONFIGURATION
 // ======================
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/';
 const REQUEST_TIMEOUT = parseInt(process.env.REACT_APP_REQUEST_TIMEOUT) || 15000;
 const CACHE_DURATION = parseInt(process.env.REACT_APP_CACHE_DURATION) || 30000; // 30s
 const MAX_RETRIES = parseInt(process.env.REACT_APP_MAX_RETRIES) || 3;

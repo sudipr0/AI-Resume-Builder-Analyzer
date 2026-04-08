@@ -36,7 +36,7 @@ import { toast } from 'react-hot-toast';
 
 // API Service
 const API_SERVICE = {
-  baseUrl: process.env.REACT_APP_API_URL || 'http://localhost:5001',
+  baseUrl: import.meta.env.VITE_API_URL || '',
 
   getAuthToken() {
     return localStorage.getItem('adminToken') || localStorage.getItem('token');

@@ -25,6 +25,11 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // ======================
+// TRUST PROXY (required for rate limiting behind Replit/nginx proxy)
+// ======================
+app.set('trust proxy', 1);
+
+// ======================
 // SECURITY & MIDDLEWARE
 // ======================
 app.use(helmet({

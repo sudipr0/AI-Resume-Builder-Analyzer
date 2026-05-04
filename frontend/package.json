@@ -1,8 +1,8 @@
 {
   "name": "ai-resume-builder-frontend",
   "version": "1.2.0",
-  "type": "module",
   "private": true,
+  "type": "module",
   "description": "Resumecraft - AI-powered Resume Builder with modern React stack",
   "scripts": {
     "dev": "vite --mode development",
@@ -34,12 +34,9 @@
     "@mui/material": "^5.18.0",
     "@react-oauth/google": "^0.12.1",
     "@tanstack/react-query": "^5.90.19",
-<<<<<<< HEAD
     "@tanstack/react-query-devtools": "^5.96.2",
-=======
     "@types/diff-match-patch": "^1.0.36",
     "@types/react-beautiful-dnd": "^13.1.8",
->>>>>>> 5e1e1bc (upgrade)
     "antd": "^5.19.0",
     "axios": "^1.7.2",
     "axios-retry": "^4.5.0",

@@ -1,0 +1,55 @@
+name: CI/CD Blue-Green Deployment
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  PROJECT_ID: resumecraft-prod
+  CLUSTER_NAME: resumecraft-k8s
+  REGION: us-central1
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Run Tests
+      run: |
+        npm ci
+        npm test
+
+    - name: Build Docker Image
+      run: docker build -t gcr.io/$PROJECT_ID/backend:${{ github.sha }} ./backend
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+
+    - name: Configure Docker for GCR
+      run: gcloud auth configure-docker
+
+    - name: Push to GCR
+      run: docker push gcr.io/$PROJECT_ID/backend:${{ github.sha }}
+
+    - name: Connect to GKE
+      uses: google-github-actions/get-gke-credentials@v1
+      with:
+        cluster_name: ${{ env.CLUSTER_NAME }}
+        location: ${{ env.REGION }}
+
+    - name: Deploy Green Environment
+      run: |
+        sed -i 's/${GITHUB_SHA}/${{ github.sha }}/g' infra/k8s/api.deployment.yaml
+        kubectl apply -f infra/k8s/api.deployment.yaml
+        kubectl rollout status deployment/resumecraft-api -w
+
+    # In a full blue-green setup, we would update the ingress/service selector here to point to the new replica set.

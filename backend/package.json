@@ -19,9 +19,12 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
+    "@sentry/node": "^10.51.0",
     "archiver": "^7.0.1",
     "axios": "^1.14.0",
     "bcryptjs": "^2.4.3",
+    "bullmq": "^5.76.5",
+    "clamscan": "^2.4.0",
     "cloudinary": "^2.9.0",
     "compression": "^1.8.1",
     "connect-mongo": "^6.0.0",
@@ -60,13 +63,17 @@
     "passport-local": "^1.0.0",
     "pdf-parse": "^2.4.5",
     "pdfkit": "^0.18.0",
+    "posthog-node": "^5.33.2",
     "puppeteer": "^24.39.0",
     "rate-limit-redis": "^4.3.1",
+    "stripe": "^22.1.0",
     "tesseract.js": "^7.0.0",
     "uuid": "^13.0.0",
     "validator": "^13.15.26",
     "winston": "^3.19.0",
-    "winston-daily-rotate-file": "^5.0.0"
+    "winston-daily-rotate-file": "^5.0.0",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.30"
   },
   "devDependencies": {
     "eslint": "^9.11.1",

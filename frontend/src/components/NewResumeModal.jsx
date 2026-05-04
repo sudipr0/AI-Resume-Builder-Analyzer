@@ -1,3 +1,16 @@
+═══════════════════════════════════════════════════════════
+
+{"level":"info","message":"✅ Socket.io server initialized","timestamp":"2026-04-06T17:26:32.350Z"}
+(node:31672) [MONGOOSE] Warning: Duplicate schema index on {"email":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:31672) [MONGOOSE] Warning: Duplicate schema index on {"googleId":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+(node:31672) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(node:31672) [MONGOOSE] Warning: Duplicate schema index on {"timestamp":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+(node:31672) [MONGOOSE] Warning: Duplicate schema index on {"slug":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+✅ MongoDB connected successfully
+info: 🛠️ Maintenance Service Started {"service":"ai-resume-builder","timestamp":"2026-04-06 23:11:32"}
+💥 UNCAUGHT EXCEPTION! Shutting down... Error listen EADDRINUSE: address already in use 0.0.0.0:5001
+[nodemon] app crashed - waiting for file changes before starting...
 // src/components/NewResumeModal.jsx - ADVANCED RESUME CREATION MODAL
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';

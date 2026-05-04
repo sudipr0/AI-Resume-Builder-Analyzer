@@ -34,7 +34,12 @@
     "@mui/material": "^5.18.0",
     "@react-oauth/google": "^0.12.1",
     "@tanstack/react-query": "^5.90.19",
+<<<<<<< HEAD
     "@tanstack/react-query-devtools": "^5.96.2",
+=======
+    "@types/diff-match-patch": "^1.0.36",
+    "@types/react-beautiful-dnd": "^13.1.8",
+>>>>>>> 5e1e1bc (upgrade)
     "antd": "^5.19.0",
     "axios": "^1.7.2",
     "axios-retry": "^4.5.0",
@@ -42,12 +47,14 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.0",
     "date-fns": "^2.30.0",
+    "diff-match-patch": "^1.0.5",
     "framer-motion": "^10.16.16",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
     "lucide-react": "^0.563.0",
     "react": "^18.3.1",
+    "react-beautiful-dnd": "^13.1.1",
     "react-dom": "^18.3.1",
     "react-error-boundary": "^4.0.11",
     "react-helmet-async": "^2.0.4",
@@ -58,6 +65,9 @@
     "recharts": "^2.15.4",
     "socket.io-client": "^4.8.3",
     "tailwind-merge": "^3.4.0",
+    "web-vitals": "^5.2.0",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.30",
     "zustand": "^4.5.7"
   },
   "devDependencies": {

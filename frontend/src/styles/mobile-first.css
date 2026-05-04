@@ -1,0 +1,47 @@
+/* Mobile-first responsive tweaks for the UI */
+
+/* Base overrides for smaller screens */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    height: auto;
+    z-index: 40;
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.1);
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .sidebar.open {
+    transform: translateY(0);
+  }
+
+  /* Bottom sheet modal style */
+  .modal-content {
+    margin-top: auto;
+    border-radius: 20px 20px 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+  }
+
+  /* Hide command palette hint on mobile */
+  .cmd-hint {
+    display: none;
+  }
+}
+
+/* Touch targets */
+button, a {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Hide scrollbar but keep functionality */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
